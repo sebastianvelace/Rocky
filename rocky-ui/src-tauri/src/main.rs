@@ -29,7 +29,11 @@ async fn main() {
             let app_handle = app.handle().clone();
 
             let (stats_tx, stats_rx) = mpsc::unbounded_channel();
-            python_bridge::spawn_python_telemetry_bridge(auth_for_python, stats_rx);
+            python_bridge::spawn_python_telemetry_bridge(
+                auth_for_python,
+                stats_rx,
+                app.handle().clone(),
+            );
 
             // Loop de telemetría: UI (Tauri) + mismo JSON hacia Python (WebSocket)
             tokio::spawn(async move {

@@ -3,6 +3,8 @@
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
+use serde_json::Value;
+use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::sleep;
 use tokio_tungstenite::connect_async;
@@ -40,6 +42,7 @@ fn build_ws_request(token: &str) -> WsResult<Request<()>> {
 pub fn spawn_python_telemetry_bridge(
     auth_token: String,
     mut stats_rx: UnboundedReceiver<SystemStats>,
+    app_handle: AppHandle,
 ) {
     tokio::spawn(async move {
         loop {
@@ -75,9 +78,24 @@ pub fn spawn_python_telemetry_bridge(
                                         let _ = write.send(Message::Pong(p)).await;
                                     }
                                     Some(Ok(Message::Pong(_))) => {}
-                                    Some(Ok(_other)) => {
-                                        // p.ej. ack desde Python
+                                    Some(Ok(Message::Text(text))) => {
+                                        let txt = text.as_str();
+                                        if let Ok(value) = serde_json::from_str::<Value>(txt) {
+                                            if value.get("type").and_then(|v| v.as_str())
+                                                == Some("alert")
+                                            {
+                                                if let Err(e) =
+                                                    app_handle.emit("system-alert", value)
+                                                {
+                                                    eprintln!(
+                                                        "[rocky-python-ws] emit system-alert: {e}"
+                                                    );
+                                                }
+                                            }
+                                        }
                                     }
+                                    Some(Ok(Message::Binary(_))) => {}
+                                    Some(Ok(Message::Frame(_))) => {}
                                     Some(Err(e)) => {
                                         eprintln!("[rocky-python-ws] read error: {e}");
                                         break;

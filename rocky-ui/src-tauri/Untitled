@@ -1,0 +1,15 @@
+  rocky cd rocky-ui
+➜  rocky-ui npm install
+
+added 2 packages, and audited 3 packages in 6s
+
+1 package is looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+➜  rocky-ui npm run tauri dev
+
+> rocky-ui@0.1.0 tauri
+> tauri dev
+
+       Error `"tauri.conf.json"` error on `build > devUrl`: "" is not a "uri"

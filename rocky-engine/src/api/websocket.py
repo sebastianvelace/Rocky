@@ -1,0 +1,1 @@
+"""Comunicación asíncrona bidireccional (WebSocket)."""

@@ -1,0 +1,15 @@
+[Unit]
+Description=Rocky Engine (API / WebSocket)
+After=network.target
+
+[Service]
+Type=simple
+User=rocky
+WorkingDirectory=/opt/rocky/rocky-engine
+EnvironmentFile=-/opt/rocky/.env
+# Sustituir por el punto de entrada real (p. ej. uvicorn/hypercorn).
+ExecStart=/bin/sleep infinity
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

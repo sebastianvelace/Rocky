@@ -12,6 +12,7 @@ export default function Page() {
   const [stats, setStats] = useState({ cpu: 0, ram: 0 });
   const [isAlerting, setIsAlerting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
 
   useEffect(() => {
     const setupTelemetry = async () => {
@@ -72,6 +73,22 @@ export default function Page() {
           : "border border-transparent bg-black text-green-400"
       }`}
     >
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            setIsListening(true);
+            const { invoke } = await import("@tauri-apps/api/core");
+            await invoke("request_listen");
+          } finally {
+            setIsListening(false);
+          }
+        }}
+        className="fixed bottom-6 right-6 rounded-full border border-green-400/40 bg-black/80 px-5 py-3 text-sm font-semibold text-green-200 shadow-[0_0_24px_rgba(34,197,94,0.25)] backdrop-blur hover:border-green-400 hover:text-green-100 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={isListening}
+      >
+        {isListening ? "Escuchando..." : "Hablar"}
+      </button>
       <h1>ROCKY TELEMETRY</h1>
       {alertMessage ? (
         <p className="mt-2 max-w-xl rounded border border-red-500/60 bg-red-950/80 px-3 py-2 text-sm font-semibold text-red-100">

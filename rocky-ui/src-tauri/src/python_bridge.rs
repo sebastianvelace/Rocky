@@ -42,6 +42,7 @@ fn build_ws_request(token: &str) -> WsResult<Request<()>> {
 pub fn spawn_python_telemetry_bridge(
     auth_token: String,
     mut stats_rx: UnboundedReceiver<SystemStats>,
+    mut cmd_rx: UnboundedReceiver<String>,
     app_handle: AppHandle,
 ) {
     tokio::spawn(async move {
@@ -121,6 +122,20 @@ pub fn spawn_python_telemetry_bridge(
                                     None => {
                                         eprintln!("[rocky-python-ws] stats channel closed");
                                         return;
+                                    }
+                                }
+                            }
+
+                            cmd = cmd_rx.recv() => {
+                                match cmd {
+                                    Some(cmd) => {
+                                        if let Err(e) = write.send(Message::text(cmd)).await {
+                                            eprintln!("[rocky-python-ws] send cmd failed: {e}");
+                                            break;
+                                        }
+                                    }
+                                    None => {
+                                        // Si el canal de comandos se cerró, seguimos con telemetría.
                                     }
                                 }
                             }

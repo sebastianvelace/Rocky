@@ -1,200 +1,180 @@
-🚀 PROYECTO: ROCKY (Phase 1: Eridani) - Master Blueprint v2.0
-"Erid-fist-bump. 👊" - Documento de Arquitectura y Especificaciones de Ingeniería.
+# 🪨 ROCKY — Engineering Assistant & Telemetry Core
 
-1. Visión del Proyecto
-Rocky es un asistente de ingeniería para Linux diseñado bajo el principio de Cero-VRAM local y Alta Resiliencia. Actúa como un "Kernel de Inteligencia" que orquesta telemetría, automatización del OS y servicios de terceros (Spotify, Google Calendar) sin parasitar los recursos del PC local, dejando la memoria libre para cargas de trabajo pesadas de desarrollo (SaaS, simulaciones, compilación).
+Rocky es un asistente personal nativo para Linux, diseñado bajo el principio de
+**Cero-VRAM local**: la inferencia (Llama 3.3 y Whisper vía Groq) y la síntesis
+de voz (edge-tts) ocurren fuera de la máquina, dejando CPU/GPU/RAM libres para
+cargas de trabajo pesadas. Localmente solo corre un daemon ligero que orquesta
+telemetría, voz y (a futuro) herramientas de terceros.
 
-2. Requisitos del Sistema y Stack Tecnológico
-2.1. Backend de Sistema y UI Container (Rust / Tauri)
-Rol: Seguridad perimetral, gestión de ventana nativa y telemetría de bajo nivel del SO.
+> La visión completa y el cronograma original están en
+> [`docs/BLUEPRINT.md`](docs/BLUEPRINT.md). Este README describe **lo que existe
+> hoy** y las decisiones de arquitectura tomadas al implementarlo.
 
-Lenguaje: Rust.
+## Estado actual (Phase 1)
 
-Crates Clave:
+Funciona de punta a punta:
 
-tauri: Gestión IPC (Inter-Process Communication).
+- ✅ **Telemetría en tiempo real** — Rust (`sysinfo`) lee CPU/RAM cada segundo,
+  la UI la grafica (valor, barra con umbral y sparkline de 60 s).
+- ✅ **Handshake de seguridad** — Tauri genera un UUID por arranque y lo inyecta
+  al engine; el WebSocket rechaza cualquier conexión sin ese token.
+- ✅ **Alertas proactivas con IA** — CPU > 80 % o RAM > 90 % sostenidas 3 s
+  disparan un consejo generado por Llama 3.3, mostrado en la UI y hablado por
+  TTS. Cooldown de 60 s para no spamear.
+- ✅ **Voz conversacional** — botón *Hablar* → micrófono → Whisper (Groq) →
+  Llama 3.3 → respuesta en pantalla + voz. La transcripción y la respuesta se
+  ven en la consola; el estado del pipeline (escuchando/pensando/hablando) se
+  refleja en vivo.
+- 🔜 Roadmap: atajo global de teclado, `intent_parser`/`tool_dispatcher`
+  (acciones deterministas), Spotify, Google Calendar, reintentos con Tenacity.
 
-sysinfo: Lectura directa de hardware (CPU, RAM, Temperaturas).
+## Arquitectura
 
-uuid: Generación de tokens efímeros para seguridad.
+Tres procesos, un solo dueño de cada responsabilidad:
 
-tokio: Runtime asíncrono para el servidor de telemetría.
+```
+┌────────────────────────── Tauri (Rust) ──────────────────────────┐
+│  · Genera ROCKY_AUTH_TOKEN (UUID) por arranque                   │
+│  · Lanza rocky-engine (uvicorn) como subproceso                  │
+│  · Lee CPU/RAM cada 1 s (sysinfo)                                │
+│  · Puente WebSocket ↔ Python con reconexión cada 5 s             │
+└──────────┬───────────────────────────────┬───────────────────────┘
+   eventos Tauri                   WebSocket ws://127.0.0.1:8000/ws
+ (system-stats, system-alert,      (telemetría JSON + comandos +
+  rocky-chat, voice-state)          eventos tipados de vuelta)
+           │                               │
+┌──────────▼──────────┐         ┌──────────▼───────────────────────┐
+│  Next.js (webview)  │         │  rocky-engine (Python/FastAPI)   │
+│  Dashboard + consola│         │  · Valida token (middleware)     │
+│  de voz. Sin acceso │         │  · Orquestador: telemetría→      │
+│  a red ni al token. │         │    analyzer→Groq, voz→STT/LLM/TTS│
+└─────────────────────┘         └──────────────────────────────────┘
+```
 
-2.2. Núcleo Cognitivo y Controlador (Python)
-Rol: Cerebro lógico, procesamiento de voz, NLP y ejecución determinista de herramientas.
+### Decisiones de arquitectura (y desviaciones del blueprint)
 
-Lenguaje: Python 3.11+.
+1. **Doble puente en lugar de UI→WebSocket directo.** El blueprint sugería que
+   Next.js conectara al WebSocket. Se decidió que **solo Rust** hable con
+   Python: el token jamás entra al webview (menor superficie de ataque), hay un
+   único cliente que gestionar y la UI queda 100 % pasiva (solo escucha eventos
+   Tauri). La reconexión vive en Rust.
+2. **Logs JSON con stdlib, sin structlog.** `infrastructure/logger.py`
+   implementa un `JsonFormatter` propio: mismo resultado (una línea JSON por
+   evento, nivel vía `ROCKY_LOG_LEVEL`) sin una dependencia más.
+3. **Voz por botón de UI, no atajo global (aún).** El atajo global
+   (Super+Espacio) requiere integración con el compositor (X11/Wayland
+   adapters); queda en el roadmap. El disparador actual es el botón *Hablar*,
+   que viaja UI → Rust (`request_listen`) → Python (`{"action":"listen"}`).
+4. **SpeechRecognition + PyAudio para captura.** Más simple que
+   `sounddevice`+numpy para la fase actual (detección de silencio incluida).
+   El audio se graba a un temporal y se borra inmediatamente tras transcribir.
+5. **Un solo modelo de texto: `llama-3.3-70b-versatile`.** El id previo
+   (`llama-3-70b-8192`) no existe en Groq y hacía que toda alerta cayera al
+   mensaje de fallback en silencio.
+6. **El orquestador no hace el trabajo.** `orchestrator.py` solo enruta:
+   telemetría → `analyzer` (+Groq si hay alerta), `{"action":"listen"}` →
+   pipeline de voz como tarea independiente (la telemetría nunca se bloquea,
+   las llamadas HTTP van en `asyncio.to_thread`). Los envíos por el socket se
+   serializan con un lock.
+7. **Sin GROQ_API_KEY todo sigue funcionando** con respuestas de fallback: la
+   resiliencia es degradación, no crash.
 
-Librerías Clave:
+### Contratos de datos (WebSocket y eventos Tauri)
 
-FastAPI + Uvicorn: Servidor de WebSockets.
+Todos los mensajes están blindados por Pydantic (`src/domain/models.py`) y
+tipados en TypeScript (`src/hooks/useRocky.ts`).
 
-Groq: Inferencia ultrarrápida Llama-3 y Whisper (STT).
+| Dirección | Mensaje WS | Evento Tauri | Contenido |
+|---|---|---|---|
+| Rust → Python | `{cpu, ram}` | — | telemetría cada 1 s |
+| Rust → Python | `{"action":"listen"}` | — | iniciar pipeline de voz |
+| Python → Rust | `TelemetryAck` | — (no llega a UI) | `{status, cpu_received}` |
+| Python → Rust | `AlertEvent` | `system-alert` | `{type:"alert", level, resource, message}` |
+| Python → Rust | `ChatEvent` | `rocky-chat` | `{type:"chat", role:"user"\|"rocky", text}` |
+| Python → Rust | `VoiceStateEvent` | `voice-state` | `{type:"voice", state, detail?}` |
+| Rust → UI | — | `system-stats` | `{cpu, ram}` |
 
-Pydantic: Validación estricta de esquemas y contratos de datos.
+## Estructura del repositorio
 
-Tenacity: Gestión de reintentos y resiliencia de red (Circuit breakers).
-
-edge-tts: Síntesis de voz (Azure Neural) sin consumo de GPU local.
-
-spotipy: Control de la API de Spotify.
-
-google-api-python-client & google-auth: Integración con Google Calendar.
-
-sounddevice & numpy: Captura de buffers de audio locales para el flujo de voz.
-
-2.3. Interfaz de Usuario (Next.js)
-Rol: Visualización de telemetría y consola de interacción manual.
-
-Framework: Next.js 14/15 (App Router).
-
-Estética: Tailwind CSS (Diseño terminal/industrial), Lucide React.
-
-3. Arquitectura del Flujo de Voz (Voice-to-Command)
-El audio no satura la memoria. Se procesa así:
-
-Captura (Python): El módulo infrastructure/audio/capture.py escucha mediante un atajo global de teclado (ej. Super + Espacio). Graba un buffer de audio en memoria (sin escribir a disco duro para evitar desgaste del SSD).
-
-Transcripción (Groq STT): El buffer de bytes se envía a la API de Whisper en Groq. Retorna texto en milisegundos.
-
-Parseo y Despacho: El texto entra al intent_parser.py, que usa Llama-3 (vía Groq) para extraer un JSON con la intención. El tool_dispatcher.py ejecuta la acción.
-
-4. Blueprint de Directorios Estricto (Separation of Concerns)
-Plaintext
+```
 rocky/
-├── rocky-engine/               # Capa de Inteligencia y Control (Python)
+├── rocky-engine/            # Núcleo cognitivo (Python 3.11+ / FastAPI)
 │   ├── src/
-│   │   ├── api/                # Protocolos y Seguridad
-│   │   │   ├── middleware.py   # Validación del ROCKY_AUTH_TOKEN
-│   │   │   └── ws_handler.py   # Gestión asíncrona de WebSockets
-│   │   ├── domain/             # Modelos de Datos (Independientes del framework)
-│   │   │   ├── interfaces.py   # Clases Base (OSController, BaseTool)
-│   │   │   └── schemas.py      # Modelos Pydantic (Intenciones, Telemetría)
-│   │   ├── infrastructure/     # Conexión con el Mundo Exterior
-│   │   │   ├── adapters/       # OS (x11_adapter.py, wayland_adapter.py)
-│   │   │   ├── audio/          # Flujo de Voz (capture.py, tts_engine.py)
-│   │   │   ├── clients/        # Integraciones con retries (Tenacity)
-│   │   │   │   ├── groq_client.py
-│   │   │   │   ├── spotify_client.py
-│   │   │   │   └── gcalendar_client.py
-│   │   │   └── logger.py       # Configuración de Structlog (Logs en JSON)
-│   │   ├── core/               # Lógica de Orquestación (Dividida para escalabilidad)
-│   │   │   ├── intent_parser.py    # LLM traduce texto a un Schema estructurado
-│   │   │   └── tool_dispatcher.py  # Ejecuta la herramienta según el Schema
-│   │   └── main.py             # Entry point FastAPI, inyección de dependencias
-│   ├── tests/                  # Cobertura
-│   │   ├── unit/               # Mocks de Groq/Spotify y tests de Pydantic
-│   │   └── integration/        # Tests del WebSocket local
-│   ├── pytest.ini
-│   └── requirements.txt
-├── rocky-ui/                   # Frontend y Runtime (Tauri + Next.js)
-│   ├── src-tauri/              # Backend Rust
-│   │   ├── src/
-│   │   │   ├── main.rs         # Lógica de arranque, generación UUID
-│   │   │   └── telemetry.rs    # Bucle de lectura hardware (sysinfo)
-│   │   └── Cargo.toml
-│   ├── src/                    # App Next.js
-│   │   ├── components/         # Widgets aislados (StatsChart, SpotifyPlayer)
-│   │   ├── hooks/              # useRockySocket (Conexión + Reintentos)
-│   │   └── lib/                # Utilidades de frontend
-│   ├── package.json
-│   └── tauri.conf.json
-├── deploy/                     # Infraestructura local
-│   ├── rocky-core.service      # Systemd daemon
-│   └── setup_env.sh            # Script de inicialización
-└── .env.example                # Plantilla de secretos (Obligatoria)
-5. Diccionario de Variables de Entorno (.env.example)
-La configuración debe ser explícita para evitar fallos silenciosos.
+│   │   ├── api/             # middleware.py (auth) · websocket.py (endpoint)
+│   │   ├── core/            # analyzer.py (umbrales sostenidos)
+│   │   ├── domain/          # models.py (contratos Pydantic)
+│   │   ├── infrastructure/  # audio/ (STT, TTS) · clients/ (Groq) · logger.py
+│   │   ├── orchestrator.py  # enrutamiento de mensajes y pipeline de voz
+│   │   └── main.py          # entry point + inyección de dependencias
+│   └── tests/               # unit/ e integration/ (pytest, 21 tests)
+├── rocky-ui/                # Frontend (Tauri 2 + Next.js 16 + Tailwind 4)
+│   ├── src-tauri/src/       # main.rs · telemetry.rs · python_bridge.rs · auth_token.rs
+│   └── src/                 # app/ · components/ · hooks/useRocky.ts
+├── scripts/                 # deploy.sh · rocky.service (systemd)
+└── docs/BLUEPRINT.md        # visión y cronograma original
+```
 
-Fragmento de código
-# ==========================================
-# ROCKY - VARIABLES DE ENTORNO (Phase 1)
-# ==========================================
+## Desarrollo local
 
-# 1. Seguridad IPC (Inyectado dinámicamente por Rust en producción, manual en dev)
-ROCKY_AUTH_TOKEN=dev_secret_token_12345
+Requisitos de sistema (Debian/Ubuntu):
 
-# 2. IA Inferencia y Voz (Groq)
-GROQ_API_KEY=gsk_tullaveaqui...
+```bash
+sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
+  libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
+  portaudio19-dev mpv
+```
 
-# 3. Integración Spotify
-SPOTIFY_CLIENT_ID=tu_client_id
-SPOTIFY_CLIENT_SECRET=tu_client_secret
-SPOTIFY_REDIRECT_URI=http://localhost:8000/callback
+(`portaudio19-dev` es necesario para PyAudio/micrófono; `mpv` reproduce el TTS.)
 
-# 4. Integración Google Calendar (Path al JSON de credenciales de Google Cloud)
-GOOGLE_APPLICATION_CREDENTIALS=/ruta/absoluta/a/tu/credentials.json
+1. **Engine Python** (el venv debe llamarse `venv`, Tauri lo busca ahí):
 
-# 5. Sistema y Observabilidad
-ROCKY_LOG_LEVEL=INFO # Opciones: DEBUG, INFO, WARNING, ERROR
-XDG_SESSION_TYPE=x11 # o wayland, para el adapter correcto
-6. Línea de Tiempo Realista (Ejecución "Tracer Bullet")
-Hemos ajustado el cronograma duplicando el tiempo para acomodar la complejidad real del IPC y delegando la IA hasta asegurar la estabilidad estructural.
+   ```bash
+   cd rocky-engine
+   python3 -m venv venv && source venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
-Milestone 1: El Hilo Conductor (Semana 1-2)
-Objetivo: Un pipeline de telemetría inquebrantable sin IA.
+2. **Secretos**: copia `.env.example` a `rocky-engine/.env` y pon tu
+   `GROQ_API_KEY`. (Sin ella, Rocky funciona con respuestas de fallback.)
 
-Día 1-3: Setup Tauri + Rust. Generación de Token Efímero y lectura básica de sysinfo.
+3. **App completa** (Tauri lanza Next.js y el engine automáticamente):
 
-Día 4-7: Setup FastAPI. Middleware de autenticación estricta validando el token de Rust.
+   ```bash
+   cd rocky-ui
+   npm install
+   npm run tauri dev
+   ```
 
-Día 8-10: UI en Next.js conecta al WebSocket y renderiza gráficas de RAM/CPU en tiempo real.
+### Solo la UI en el navegador (modo demo)
 
-Día 11-14: Refactorización, manejo de desconexiones (reconexión automática del frontend) y configuración del logger JSON (structlog).
+```bash
+cd rocky-ui && npm run dev
+```
 
-Milestone 2: Sentidos y Voz (Semana 3)
-Objetivo: Capacidad de escuchar y hablar de forma nativa.
+Fuera de Tauri la UI entra en **modo demo** con telemetría simulada (indicado
+en el header) para iterar el diseño sin compilar la app nativa.
 
-Día 15-17: Implementación de infrastructure/audio/capture.py. Grabar audio temporalmente mediante atajo de teclado.
+### Solo el engine (sin Tauri)
 
-Día 18-21: Implementación de edge-tts para que Rocky notifique por voz cuando la RAM supere el 90%.
+```bash
+cd rocky-engine
+ROCKY_AUTH_TOKEN=dev_secret_token_12345 venv/bin/python -m uvicorn src.main:app --port 8000
+```
 
-Milestone 3: Cerebro y Agentes (Semana 4-5)
-Objetivo: Integración con Groq y ejecución de herramientas de terceros.
+### Tests
 
-Día 22-25: Integración de Whisper (para STT) y Llama-3 en intent_parser.py para estructurar JSONs de acciones.
+```bash
+cd rocky-engine
+pip install -r requirements-dev.txt
+python -m pytest
+```
 
-Día 26-30: Desarrollo del spotify_client.py y gcalendar_client.py con Tenacity para asegurar la resiliencia de la red.
+## Seguridad
 
-Día 31-35: Pruebas de integración. Rocky recibe comando de voz, transcribe, parsea intención y reproduce música en Spotify de forma determinista.
-
-7. README.md Oficial del Repositorio
-Markdown
-# 🪨 ROCKY: Engineering Assistant & Telemetry Core
-
-Rocky es un asistente personal nativo para Linux diseñado para ingenieros de software. Construido bajo el principio de **Cero-VRAM local**, Rocky utiliza un modelo de "Inferencia Externa y Ejecución Local". Actúa como un daemon de bajo consumo que orquesta telemetría, scripts de sistema y APIs de terceros sin ralentizar la estación de trabajo.
-
-## 🏗 Arquitectura de Tres Capas
-1. **Rust (Tauri):** Frontera de seguridad (Token efímero), renderizado webview ligero y recolección de métricas del hardware vía `sysinfo`.
-2. **Python (FastAPI):** Núcleo cognitivo. Maneja WebSockets, procesa audio local, interactúa con la API de Groq (Llama-3/Whisper) y despacha intenciones (Spotify, OS Tools).
-3. **Next.js:** Interfaz industrial de alta reactividad.
-
-## ✨ Funcionalidades Core (Phase 1)
-- **Seguridad IPC Estricta:** Handshake criptográfico en cada arranque entre Rust y Python. Ningún proceso externo puede inyectar comandos.
-- **Telemetría Proactiva:** Monitoreo en background con alertas de voz naturales (`edge-tts`) para umbrales críticos de CPU/RAM.
-- **Resiliencia de Red:** Tolerancia a fallos en llamadas a APIs externas mediante decoradores `Tenacity` (Circuit breaking / Exponential Backoff).
-- **Separation of Concerns:** Despliegue modular. El parseo de lenguaje natural (`intent_parser.py`) está estrictamente separado de la ejecución de código (`tool_dispatcher.py`).
-
-## ⚙️ Desarrollo Local
-1. Instala dependencias del sistema: `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev portaudio19-dev` (portaudio es requerido para PyAudio).
-2. Inicia el entorno Python: `cd rocky-engine && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`.
-3. Configura el `.env` guiándote por `.env.example`.
-4. Corre el proyecto en modo Dev (Rust levantará Next.js): `cd rocky-ui && npm run tauri dev`.
-8. Prompt de Inicialización Definitivo (Para entregar a Cursor)
-Copia exactamente este texto y dáselo a Cursor (o tu LLM de código) como la instrucción maestra o colócalo en tu archivo rules de Cursor:
-
-"Actúa como un Ingeniero de Software Staff experto en sistemas distribuidos locales. Estamos construyendo 'ROCKY', un asistente para Linux dividido en un contenedor Tauri (Rust + Next.js) y un backend de control (Python/FastAPI).
-
-REGLAS INMUTABLES DE DESARROLLO:
-
-Rigor de Tipado: Toda la comunicación vía WebSocket y los parseos del LLM deben estar blindados por esquemas Pydantic en Python y TypeScript en el frontend. Si no hay contrato de datos, no se escribe lógica.
-
-Seguridad Zero-Trust Local: Python NO acepta conexiones WebSocket que no posean el ROCKY_AUTH_TOKEN inyectado por Rust en el arranque.
-
-No uses print(): Importa y utiliza structlog en Python para emitir logs en formato JSON.
-
-Resiliencia por defecto: Toda llamada a APIs de terceros (Groq, Spotify, Google) DEBE estar decorada con tenacity para implementar reintentos con backoff exponencial. No asumas que la red funciona.
-
-Separation of Concerns: El orquestador no hace el trabajo. intent_parser.py solo convierte texto a un Schema Pydantic validado. tool_dispatcher.py recibe ese Schema y ejecuta el adaptador correspondiente. Mantén los archivos pequeños y específicos.
-
-NUESTRA PRIMERA TAREA (Tracer Bullet): > Ignora temporalmente la IA y la voz. Vamos a construir el pipeline de telemetría de punta a punta. Crea la estructura de carpetas rocky-ui/src-tauri y genera el código en Rust (main.rs y telemetry.rs) para: 1. Generar un UUID (Auth Token), 2. Leer la RAM/CPU cada 1000ms usando la crate sysinfo, y 3. Prepararse para enviar este token al proceso de Python."
+- **Zero-trust local**: el WebSocket rechaza (código 1008) cualquier conexión
+  sin el header `x-rocky-auth-token` correcto. El token es un UUID nuevo por
+  arranque, generado por Rust e inyectado al subproceso Python por entorno.
+- El engine escucha solo en `127.0.0.1`.
+- El webview no conoce el token ni tiene acceso al engine.
+- El audio del micrófono se transcribe desde un archivo temporal que se borra
+  de inmediato; nada persiste en disco.

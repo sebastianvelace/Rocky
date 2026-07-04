@@ -43,6 +43,13 @@ export type VoiceState =
 const ALERT_VISIBLE_MS = 8000;
 const VOICE_SAFETY_TIMEOUT_MS = 15000;
 
+const DEMO_REPLIES = [
+  "Modo demo, Sebas: sin engine no hay Llama, pero el teclado se siente bien, ¿no?",
+  "Te escucho perfectamente… es broma, soy una respuesta simulada del modo demo.",
+  "En la app real esto lo respondería Llama 3.3 con tu telemetría en contexto.",
+  "Todo nominal por aquí. Bueno, todo simulado, pero nominal.",
+];
+
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -163,6 +170,41 @@ export function useRocky() {
     }
   }, []);
 
+  const sendChat = useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    if (!isTauri()) {
+      // Demo: respuesta simulada para poder sentir la interacción en navegador.
+      setChat((prev) => [...prev, { role: "user", text: trimmed, ts: Date.now() }]);
+      setVoiceState("thinking");
+      setTimeout(() => {
+        const reply = DEMO_REPLIES[Math.floor(Math.random() * DEMO_REPLIES.length)];
+        setChat((prev) => [...prev, { role: "rocky", text: reply, ts: Date.now() }]);
+        setVoiceState("idle");
+      }, 900);
+      return;
+    }
+
+    // El engine hace eco del turno del usuario y de la respuesta vía
+    // eventos `rocky-chat`; aquí solo mostramos el estado optimista.
+    setVoiceState("thinking");
+    setVoiceDetail(null);
+    voiceSafetyTimer.current = setTimeout(() => {
+      setVoiceState("error");
+      setVoiceDetail("El engine no respondió");
+    }, VOICE_SAFETY_TIMEOUT_MS);
+
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("send_chat", { text: trimmed });
+    } catch (err) {
+      if (voiceSafetyTimer.current) clearTimeout(voiceSafetyTimer.current);
+      setVoiceState("error");
+      setVoiceDetail(String(err));
+    }
+  }, []);
+
   const voiceBusy = voiceState !== "idle" && voiceState !== "error";
 
   return {
@@ -177,5 +219,6 @@ export function useRocky() {
     voiceDetail,
     voiceBusy,
     startListening,
+    sendChat,
   };
 }

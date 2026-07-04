@@ -24,6 +24,7 @@ export default function Page() {
     voiceDetail,
     voiceBusy,
     startListening,
+    sendChat,
   } = useRocky();
 
   return (
@@ -77,7 +78,9 @@ export default function Page() {
         voiceState={voiceState}
         voiceDetail={voiceDetail}
         voiceBusy={voiceBusy}
+        alerting={Boolean(alert)}
         onListen={startListening}
+        onSend={sendChat}
       />
     </main>
   );

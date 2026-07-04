@@ -9,7 +9,7 @@ export function AlertBanner({ alert }: { alert: SystemAlert | null }) {
   return (
     <div
       role="alert"
-      className="flex items-start gap-3 rounded border border-alert/60 bg-alert/10 px-4 py-3"
+      className="rocky-rise flex items-start gap-3 rounded border border-alert/60 bg-alert/10 px-4 py-3"
     >
       <TriangleAlert className="mt-0.5 shrink-0 text-alert" size={18} aria-hidden />
       <div>

@@ -7,6 +7,8 @@ from typing import Any, Final, Iterator
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from src.infrastructure.history_store import HistoryStore
+
 
 class GroqClient:
     # Un único modelo válido y vigente para todo el texto. El id anterior
@@ -20,13 +22,20 @@ class GroqClient:
     # Turnos (user+assistant) que se recuerdan por sesión.
     _HISTORY_MAX_MESSAGES: Final[int] = 12
 
-    def __init__(self) -> None:
+    def __init__(self, history_store: "HistoryStore | None" = None) -> None:
         self._logger = logging.getLogger("rocky.groq")
         self._api_key = os.getenv("GROQ_API_KEY")
         self._client = None
-        # Memoria conversacional de la sesión: sin ella cada mensaje era un
-        # borrón y cuenta nueva y no se podía hilar una conversación.
+        # Memoria conversacional: la ventana viva va en RAM y cada turno se
+        # persiste en SQLite; al arrancar se recargan los últimos turnos para
+        # que reiniciar Rocky no sea amnesia total.
+        self._store = history_store
         self._history: deque[dict[str, str]] = deque(maxlen=self._HISTORY_MAX_MESSAGES)
+        if self._store is not None:
+            recent = self._store.load_recent(self._HISTORY_MAX_MESSAGES)
+            self._history.extend(recent)
+            if recent:
+                self._logger.info("Historial recargado: %d turnos", len(recent))
         if not self._api_key:
             self._logger.warning("GROQ_API_KEY no definido: se usarán respuestas de fallback")
             return
@@ -152,6 +161,9 @@ class GroqClient:
     def _remember_turn(self, prompt: str, reply: str) -> None:
         self._history.append({"role": "user", "content": prompt})
         self._history.append({"role": "assistant", "content": reply})
+        if self._store is not None:
+            self._store.append("user", prompt)
+            self._store.append("assistant", reply)
 
     def stream_conversational_reply(
         self, user_text: str, telemetry: tuple[float, float] | None = None

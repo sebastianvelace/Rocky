@@ -73,6 +73,21 @@ async fn main() {
 
     let app = tauri::Builder::default()
         .manage(RockyEngineProcess::default())
+        // Atajo global (blueprint: Super+Espacio): dispara el mismo flujo de
+        // voz que el botón de la UI, aunque la ventana no tenga el foco.
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        if let Some(control) = app.try_state::<PythonBridgeControl>() {
+                            if let Err(e) = control.0.send(r#"{"action":"listen"}"#.to_string()) {
+                                eprintln!("[rocky-hotkey] no se pudo pedir escucha: {e}");
+                            }
+                        }
+                    }
+                })
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![request_listen, send_chat])
         .setup(move |app| {
             let app_handle = app.handle().clone();
@@ -94,6 +109,30 @@ async fn main() {
             let (stats_tx, stats_rx) = mpsc::unbounded_channel();
             let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<String>();
             app.manage(PythonBridgeControl(cmd_tx));
+
+            // Registrar Super+Espacio. Si el compositor ya lo usa (p. ej.
+            // GNOME), se registra la alternativa Ctrl+Alt+Espacio.
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+
+                let primary = Shortcut::new(Some(Modifiers::SUPER), Code::Space);
+                let fallback = Shortcut::new(
+                    Some(Modifiers::CONTROL | Modifiers::ALT),
+                    Code::Space,
+                );
+                match app.global_shortcut().register(primary) {
+                    Ok(()) => println!("[rocky-hotkey] Super+Espacio registrado"),
+                    Err(primary_err) => match app.global_shortcut().register(fallback) {
+                        Ok(()) => println!(
+                            "[rocky-hotkey] Super+Espacio ocupado ({primary_err}); \
+                             usando Ctrl+Alt+Espacio"
+                        ),
+                        Err(e) => {
+                            eprintln!("[rocky-hotkey] sin atajo global disponible: {e}")
+                        }
+                    },
+                }
+            }
             python_bridge::spawn_python_telemetry_bridge(
                 auth_for_python,
                 stats_rx,

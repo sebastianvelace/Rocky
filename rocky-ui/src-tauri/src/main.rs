@@ -31,6 +31,12 @@ fn request_listen(control: State<'_, PythonBridgeControl>) -> Result<(), String>
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn send_chat(text: String, control: State<'_, PythonBridgeControl>) -> Result<(), String> {
+    let payload = serde_json::json!({ "action": "chat", "text": text });
+    control.0.send(payload.to_string()).map_err(|e| e.to_string())
+}
+
 fn spawn_rocky_engine(token: String) -> std::io::Result<Child> {
     // Base fiable en runtime: carpeta `rocky-ui/src-tauri`
     // Desde ahí, el motor vive en `../../rocky-engine/`.
@@ -67,7 +73,7 @@ async fn main() {
 
     let app = tauri::Builder::default()
         .manage(RockyEngineProcess::default())
-        .invoke_handler(tauri::generate_handler![request_listen])
+        .invoke_handler(tauri::generate_handler![request_listen, send_chat])
         .setup(move |app| {
             let app_handle = app.handle().clone();
 
@@ -101,12 +107,6 @@ async fn main() {
 
                 loop {
                     let stats = telemetry::collect_stats(&mut system);
-                    eprintln!(
-                        "[rocky-telemetry] emit {} cpu={:.1}% ram={:.1}%",
-                        telemetry::SYSTEM_STATS_EVENT,
-                        stats.cpu,
-                        stats.ram
-                    );
 
                     if let Err(error) =
                         app_handle.emit(telemetry::SYSTEM_STATS_EVENT, stats.clone())

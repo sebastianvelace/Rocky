@@ -59,6 +59,13 @@ pub fn spawn_python_telemetry_bridge(
             match connect_async(request).await {
                 Ok((ws, _response)) => {
                     eprintln!("[rocky-python-ws] connected to {PYTHON_WS_URL}");
+
+                    // Descartar la telemetría acumulada mientras estuvimos
+                    // desconectados: enviarla en ráfaga haría que el analyzer
+                    // viera N lecturas "consecutivas" viejas en un instante
+                    // y pudiera disparar una falsa alerta sostenida.
+                    while stats_rx.try_recv().is_ok() {}
+
                     let (mut write, mut read) = ws.split();
 
                     loop {

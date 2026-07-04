@@ -59,6 +59,13 @@ pub fn spawn_python_telemetry_bridge(
             match connect_async(request).await {
                 Ok((ws, _response)) => {
                     eprintln!("[rocky-python-ws] connected to {PYTHON_WS_URL}");
+
+                    // Descartar la telemetría acumulada mientras estuvimos
+                    // desconectados: enviarla en ráfaga haría que el analyzer
+                    // viera N lecturas "consecutivas" viejas en un instante
+                    // y pudiera disparar una falsa alerta sostenida.
+                    while stats_rx.try_recv().is_ok() {}
+
                     let (mut write, mut read) = ws.split();
 
                     loop {
@@ -82,14 +89,21 @@ pub fn spawn_python_telemetry_bridge(
                                     Some(Ok(Message::Text(text))) => {
                                         let txt = text.as_str();
                                         if let Ok(value) = serde_json::from_str::<Value>(txt) {
-                                            if value.get("type").and_then(|v| v.as_str())
-                                                == Some("alert")
+                                            // Contratos de Python → eventos Tauri hacia la UI.
+                                            let event = match value
+                                                .get("type")
+                                                .and_then(|v| v.as_str())
                                             {
-                                                if let Err(e) =
-                                                    app_handle.emit("system-alert", value)
-                                                {
+                                                Some("alert") => Some("system-alert"),
+                                                Some("chat") => Some("rocky-chat"),
+                                                Some("voice") => Some("voice-state"),
+                                                // Acks de telemetría y desconocidos: no van a la UI.
+                                                _ => None,
+                                            };
+                                            if let Some(event) = event {
+                                                if let Err(e) = app_handle.emit(event, value) {
                                                     eprintln!(
-                                                        "[rocky-python-ws] emit system-alert: {e}"
+                                                        "[rocky-python-ws] emit {event}: {e}"
                                                     );
                                                 }
                                             }

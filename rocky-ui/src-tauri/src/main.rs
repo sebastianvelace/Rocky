@@ -31,6 +31,12 @@ fn request_listen(control: State<'_, PythonBridgeControl>) -> Result<(), String>
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn send_chat(text: String, control: State<'_, PythonBridgeControl>) -> Result<(), String> {
+    let payload = serde_json::json!({ "action": "chat", "text": text });
+    control.0.send(payload.to_string()).map_err(|e| e.to_string())
+}
+
 fn spawn_rocky_engine(token: String) -> std::io::Result<Child> {
     // Base fiable en runtime: carpeta `rocky-ui/src-tauri`
     // Desde ahí, el motor vive en `../../rocky-engine/`.
@@ -67,7 +73,22 @@ async fn main() {
 
     let app = tauri::Builder::default()
         .manage(RockyEngineProcess::default())
-        .invoke_handler(tauri::generate_handler![request_listen])
+        // Atajo global (blueprint: Super+Espacio): dispara el mismo flujo de
+        // voz que el botón de la UI, aunque la ventana no tenga el foco.
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        if let Some(control) = app.try_state::<PythonBridgeControl>() {
+                            if let Err(e) = control.0.send(r#"{"action":"listen"}"#.to_string()) {
+                                eprintln!("[rocky-hotkey] no se pudo pedir escucha: {e}");
+                            }
+                        }
+                    }
+                })
+                .build(),
+        )
+        .invoke_handler(tauri::generate_handler![request_listen, send_chat])
         .setup(move |app| {
             let app_handle = app.handle().clone();
 
@@ -88,6 +109,30 @@ async fn main() {
             let (stats_tx, stats_rx) = mpsc::unbounded_channel();
             let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<String>();
             app.manage(PythonBridgeControl(cmd_tx));
+
+            // Registrar Super+Espacio. Si el compositor ya lo usa (p. ej.
+            // GNOME), se registra la alternativa Ctrl+Alt+Espacio.
+            {
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+
+                let primary = Shortcut::new(Some(Modifiers::SUPER), Code::Space);
+                let fallback = Shortcut::new(
+                    Some(Modifiers::CONTROL | Modifiers::ALT),
+                    Code::Space,
+                );
+                match app.global_shortcut().register(primary) {
+                    Ok(()) => println!("[rocky-hotkey] Super+Espacio registrado"),
+                    Err(primary_err) => match app.global_shortcut().register(fallback) {
+                        Ok(()) => println!(
+                            "[rocky-hotkey] Super+Espacio ocupado ({primary_err}); \
+                             usando Ctrl+Alt+Espacio"
+                        ),
+                        Err(e) => {
+                            eprintln!("[rocky-hotkey] sin atajo global disponible: {e}")
+                        }
+                    },
+                }
+            }
             python_bridge::spawn_python_telemetry_bridge(
                 auth_for_python,
                 stats_rx,
@@ -101,12 +146,6 @@ async fn main() {
 
                 loop {
                     let stats = telemetry::collect_stats(&mut system);
-                    eprintln!(
-                        "[rocky-telemetry] emit {} cpu={:.1}% ram={:.1}%",
-                        telemetry::SYSTEM_STATS_EVENT,
-                        stats.cpu,
-                        stats.ram
-                    );
 
                     if let Err(error) =
                         app_handle.emit(telemetry::SYSTEM_STATS_EVENT, stats.clone())

@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+/*
+ * Tokens de Rocky (estética terminal/industrial oscura).
+ * Los colores de datos (cpu/ram) están validados para CVD y contraste
+ * sobre la superficie #0a0e0c.
+ */
+@theme {
+  --color-surface: #0a0e0c;
+  --color-panel: #10160f;
+  --color-panel-2: #141b13;
+  --color-edge: #223026;
+  --color-edge-bright: #35513f;
+
+  --color-ink: #d9e4dc;
+  --color-ink-muted: #8aa092;
+  --color-ink-faint: #5c7263;
+
+  --color-accent: #4ade80;
+
+  --color-cpu: #16a34a;
+  --color-ram: #0284c7;
+
+  --color-warn: #d97706;
+  --color-alert: #ef4444;
+
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular,
+    Menlo, monospace;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+}
+
+/* Scrollbar discreta para la consola */
+.rocky-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.rocky-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.rocky-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-edge);
+  border-radius: 3px;
+}
+
+@keyframes rocky-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.rocky-blink {
+  animation: rocky-blink 1.2s ease-in-out infinite;
+}
+
+/* ── Entradas de mensajes y banners ─────────────────────────────── */
+@keyframes rocky-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rocky-rise {
+  animation: rocky-rise 0.25s ease-out both;
+}
+
+/* Cursor de bloque del typewriter */
+@keyframes rocky-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.rocky-caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--color-accent);
+  animation: rocky-caret 0.9s steps(1) infinite;
+}
+
+/* ── Avatar de Rocky (los elementos SVG usan transform-box) ─────── */
+.rocky-avatar * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes avatar-breath {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes avatar-eye-blink {
+  0%,
+  91%,
+  100% {
+    transform: scaleY(1);
+  }
+  94% {
+    transform: scaleY(0.1);
+  }
+  97% {
+    transform: scaleY(1);
+  }
+}
+@keyframes avatar-ping {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+@keyframes avatar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes avatar-eq {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes avatar-scan {
+  0%,
+  100% {
+    transform: translateX(-2.5px);
+  }
+  50% {
+    transform: translateX(2.5px);
+  }
+}
+@keyframes avatar-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-1.5px);
+  }
+  75% {
+    transform: translateX(1.5px);
+  }
+}
+
+.avatar-breath {
+  animation: avatar-breath 3.2s ease-in-out infinite;
+}
+.avatar-eye {
+  animation: avatar-eye-blink 4.6s ease-in-out infinite;
+}
+.avatar-ping {
+  animation: avatar-ping 1.4s ease-out infinite;
+}
+.avatar-ping-late {
+  animation: avatar-ping 1.4s ease-out 0.7s infinite;
+}
+.avatar-spin {
+  animation: avatar-spin 2.4s linear infinite;
+}
+.avatar-eq {
+  transform-origin: center bottom;
+  animation: avatar-eq 0.7s ease-in-out infinite;
+}
+.avatar-scan {
+  animation: avatar-scan 1.6s ease-in-out infinite;
+}
+.avatar-shake {
+  animation: avatar-shake 0.35s linear infinite;
+}
+
+/* Accesibilidad: sin animaciones para quien las desactiva en el SO */
+@media (prefers-reduced-motion: reduce) {
+  .rocky-blink,
+  .rocky-rise,
+  .rocky-caret,
+  .avatar-breath,
+  .avatar-eye,
+  .avatar-ping,
+  .avatar-ping-late,
+  .avatar-spin,
+  .avatar-eq,
+  .avatar-scan,
+  .avatar-shake {
+    animation: none;
+  }
+}

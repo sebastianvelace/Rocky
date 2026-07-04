@@ -1,0 +1,27 @@
+# Secretos
+.env
+
+# Python (rocky-engine)
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Node / Next.js (rocky-ui)
+node_modules/
+.next/
+out/
+next-env.d.ts
+
+# Rust (rocky-ui/src-tauri)
+target/
+
+# Editores / SO
+.DS_Store
+.idea/
+.vscode/
+
+# Tauri (artefactos generados)
+rocky-ui/src-tauri/gen/schemas/
+rocky-ui/tsconfig.tsbuildinfo

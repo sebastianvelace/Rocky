@@ -1,118 +1,87 @@
-"use client"; // Obligatorio
+"use client";
 
-import { useEffect, useState } from "react";
+import { Cpu, MemoryStick } from "lucide-react";
+import { AlertBanner } from "../components/AlertBanner";
+import { StatGauge } from "../components/StatGauge";
+import { VoiceConsole } from "../components/VoiceConsole";
+import { useRocky } from "../hooks/useRocky";
 
-type SystemAlertPayload = {
-  type?: string;
-  level?: string;
-  message?: string;
-};
+const CPU_COLOR = "#16a34a";
+const RAM_COLOR = "#0284c7";
+const CPU_THRESHOLD = 80;
+const RAM_THRESHOLD = 90;
 
 export default function Page() {
-  const [stats, setStats] = useState({ cpu: 0, ram: 0 });
-  const [isAlerting, setIsAlerting] = useState(false);
-  const [alertMessage, setAlertMessage] = useState<string | null>(null);
-  const [isListening, setIsListening] = useState(false);
-
-  useEffect(() => {
-    const setupTelemetry = async () => {
-      const { listen } = await import("@tauri-apps/api/event");
-
-      const unlisten = await listen<{ cpu: number; ram: number }>(
-        "system-stats",
-        (event) => {
-          setStats(event.payload);
-        }
-      );
-
-      return unlisten;
-    };
-
-    const unlistenPromise = setupTelemetry();
-
-    return () => {
-      unlistenPromise.then((unlisten) => unlisten());
-    };
-  }, []);
-
-  useEffect(() => {
-    let disposed = false;
-    let unlisten: (() => void) | undefined;
-    let alertTimeout: ReturnType<typeof setTimeout> | undefined;
-
-    void (async () => {
-      const { listen } = await import("@tauri-apps/api/event");
-      if (disposed) return;
-      unlisten = await listen<SystemAlertPayload>("system-alert", (event) => {
-        const msg =
-          typeof event.payload?.message === "string"
-            ? event.payload.message
-            : "Alerta del sistema";
-        setAlertMessage(msg);
-        setIsAlerting(true);
-        if (alertTimeout) clearTimeout(alertTimeout);
-        alertTimeout = setTimeout(() => {
-          setIsAlerting(false);
-          setAlertMessage(null);
-        }, 4000);
-      });
-    })();
-
-    return () => {
-      disposed = true;
-      if (alertTimeout) clearTimeout(alertTimeout);
-      unlisten?.();
-    };
-  }, []);
+  const {
+    connected,
+    demoMode,
+    stats,
+    cpuHistory,
+    ramHistory,
+    alert,
+    chat,
+    voiceState,
+    voiceDetail,
+    voiceBusy,
+    startListening,
+    sendChat,
+  } = useRocky();
 
   return (
-    <main
-      className={`min-h-screen p-10 font-mono transition-colors duration-300 ${
-        isAlerting
-          ? "animate-pulse border-4 border-red-700 bg-[#1a0505] text-red-100 shadow-[0_0_40px_rgba(220,38,38,0.45)]"
-          : "border border-transparent bg-black text-green-400"
-      }`}
-    >
-      <button
-        type="button"
-        onClick={async () => {
-          try {
-            setIsListening(true);
-            const { invoke } = await import("@tauri-apps/api/core");
-            await invoke("request_listen");
-          } finally {
-            setIsListening(false);
-          }
-        }}
-        className="fixed bottom-6 right-6 rounded-full border border-green-400/40 bg-black/80 px-5 py-3 text-sm font-semibold text-green-200 shadow-[0_0_24px_rgba(34,197,94,0.25)] backdrop-blur hover:border-green-400 hover:text-green-100 disabled:cursor-not-allowed disabled:opacity-60"
-        disabled={isListening}
-      >
-        {isListening ? "Escuchando..." : "Hablar"}
-      </button>
-      <h1>ROCKY TELEMETRY</h1>
-      {alertMessage ? (
-        <p className="mt-2 max-w-xl rounded border border-red-500/60 bg-red-950/80 px-3 py-2 text-sm font-semibold text-red-100">
-          {alertMessage}
-        </p>
-      ) : null}
-      <div className="mt-4">
-        <p>CPU: {stats.cpu.toFixed(1)}%</p>
-        <div className="h-4 w-full bg-gray-800">
-          <div
-            className="h-full bg-green-500 transition-all duration-300"
-            style={{ width: `${stats.cpu}%` }}
+    <main className="mx-auto flex h-screen max-w-5xl flex-col gap-4 p-6">
+      <header className="flex items-center justify-between border-b border-edge pb-4">
+        <h1 className="text-sm font-bold uppercase tracking-[0.3em] text-accent">
+          Rocky <span className="text-ink-faint">//</span> Telemetry Core
+        </h1>
+        <div className="flex items-center gap-2 text-xs text-ink-muted">
+          <span
+            className={`h-2 w-2 rounded-full ${
+              connected
+                ? "bg-accent"
+                : demoMode
+                  ? "bg-warn"
+                  : "bg-ink-faint rocky-blink"
+            }`}
+            aria-hidden
           />
+          {connected
+            ? "telemetría activa"
+            : demoMode
+              ? "modo demo (sin Tauri)"
+              : "esperando telemetría…"}
         </div>
+      </header>
+
+      <AlertBanner alert={alert} />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatGauge
+          label="CPU"
+          icon={<Cpu size={14} aria-hidden />}
+          value={stats.cpu}
+          history={cpuHistory}
+          color={CPU_COLOR}
+          threshold={CPU_THRESHOLD}
+        />
+        <StatGauge
+          label="RAM"
+          icon={<MemoryStick size={14} aria-hidden />}
+          value={stats.ram}
+          history={ramHistory}
+          color={RAM_COLOR}
+          threshold={RAM_THRESHOLD}
+        />
       </div>
-      <div className="mt-4">
-        <p>RAM: {stats.ram.toFixed(1)}%</p>
-        <div className="h-4 w-full bg-gray-800">
-          <div
-            className="h-full bg-blue-500 transition-all duration-300"
-            style={{ width: `${stats.ram}%` }}
-          />
-        </div>
-      </div>
+
+      <VoiceConsole
+        chat={chat}
+        voiceState={voiceState}
+        voiceDetail={voiceDetail}
+        voiceBusy={voiceBusy}
+        alerting={Boolean(alert)}
+        onListen={startListening}
+        onSend={sendChat}
+      />
     </main>
   );
 }

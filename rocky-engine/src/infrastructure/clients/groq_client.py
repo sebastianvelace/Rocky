@@ -1,35 +1,41 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Final
 
 
 class GroqClient:
-    _TELEMETRY_MODEL: Final[str] = "llama-3-70b-8192"
+    # Un único modelo válido y vigente para todo el texto. El id anterior
+    # ("llama-3-70b-8192") no existe en Groq, por lo que toda alerta caía
+    # silenciosamente al mensaje de fallback.
     _CHAT_MODEL: Final[str] = "llama-3.3-70b-versatile"
     _FALLBACK: Final[str] = "Sistema bajo carga, Sebas. Groq está offline."
 
     def __init__(self) -> None:
+        self._logger = logging.getLogger("rocky.groq")
         self._api_key = os.getenv("GROQ_API_KEY")
         self._client = None
         if not self._api_key:
+            self._logger.warning("GROQ_API_KEY no definido: se usarán respuestas de fallback")
             return
 
         try:
             from groq import Groq  # type: ignore
 
             self._client = Groq(api_key=self._api_key)
-        except Exception:
+        except Exception as exc:
+            self._logger.warning("Cliente Groq no disponible: %s", exc)
             self._client = None
 
-    def get_telemetry_advice(self, cpu: float, ram: float) -> str:
-        """Consejo corto (máximo 15 palabras) para telemetría."""
+    def get_telemetry_advice(self, cpu: float, ram: float, resource: str = "cpu") -> str:
+        """Consejo corto (máximo 15 palabras) para una alerta de telemetría."""
         if not self._client:
             return self._FALLBACK
 
         try:
             completion = self._client.chat.completions.create(
-                model=self._TELEMETRY_MODEL,
+                model=self._CHAT_MODEL,
                 messages=[
                     {
                         "role": "system",
@@ -42,7 +48,10 @@ class GroqClient:
                     },
                     {
                         "role": "user",
-                        "content": f"CPU={cpu:.1f}%, RAM={ram:.1f}%. Consejo accionable en español.",
+                        "content": (
+                            f"Alerta sostenida de {resource.upper()}. "
+                            f"CPU={cpu:.1f}%, RAM={ram:.1f}%. Consejo accionable en español."
+                        ),
                     },
                 ],
                 temperature=0.6,
@@ -55,7 +64,8 @@ class GroqClient:
             if len(words) > 15:
                 return " ".join(words[:15]).rstrip(".,;:!?")
             return content
-        except Exception:
+        except Exception as exc:
+            self._logger.warning("Groq (telemetría) falló: %s", exc)
             return self._FALLBACK
 
     def get_conversational_reply(self, user_text: str) -> str:
@@ -86,5 +96,6 @@ class GroqClient:
             )
             content = (completion.choices[0].message.content or "").strip()
             return content if content else self._FALLBACK
-        except Exception:
+        except Exception as exc:
+            self._logger.warning("Groq (chat) falló: %s", exc)
             return self._FALLBACK

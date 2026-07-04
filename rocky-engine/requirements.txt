@@ -5,3 +5,6 @@ groq
 python-dotenv
 edge-tts
 SpeechRecognition
+# SpeechRecognition necesita PyAudio para abrir el micrófono
+# (requiere el paquete de sistema portaudio19-dev en Debian/Ubuntu).
+PyAudio

@@ -1,8 +1,8 @@
-"""Esquemas Pydantic (validación de datos)."""
+"""Esquemas Pydantic (contratos de datos Rust <-> Python <-> UI)."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -33,3 +33,37 @@ class TelemetryAck(BaseModel):
 
     status: str = "ok"
     cpu_received: float
+
+
+class AlertEvent(BaseModel):
+    """Alerta proactiva de telemetría. Rust la reenvía a la UI como `system-alert`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["alert"] = "alert"
+    level: Literal["info", "warning", "critical"] = "warning"
+    resource: Literal["cpu", "ram"]
+    message: str
+
+
+class ChatEvent(BaseModel):
+    """Turno de conversación (transcripción del usuario o respuesta de Rocky).
+
+    Rust lo reenvía a la UI como `rocky-chat`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["chat"] = "chat"
+    role: Literal["user", "rocky"]
+    text: str
+
+
+class VoiceStateEvent(BaseModel):
+    """Estado del pipeline de voz. Rust lo reenvía a la UI como `voice-state`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["voice"] = "voice"
+    state: Literal["listening", "transcribing", "thinking", "speaking", "idle", "error"]
+    detail: Optional[str] = None

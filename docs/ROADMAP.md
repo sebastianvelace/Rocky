@@ -1,38 +1,22 @@
 # 🗺️ ROADMAP de Rocky
 
-Caminos posibles a partir del estado actual (Phase 1 completa: telemetría,
-alertas con IA, voz y chat de texto con memoria). Ordenados por relación
+Caminos posibles a partir del estado actual. Ordenados por relación
 valor/esfuerzo, con notas de diseño para cuando se aborden.
 
+## ✅ Hecho (antes en este roadmap)
+
+- **Streaming de respuestas del LLM** — deltas `ChatEvent(partial:true)` por
+  el WebSocket; evento final con el texto completo; la UI escribe en vivo.
+- **Atajo global de teclado** — Super+Espacio vía
+  `tauri-plugin-global-shortcut`, con fallback Ctrl+Alt+Espacio.
+- **Intent parser + tool dispatcher** — `core/intent_parser.py`
+  (llama-3.1-8b-instant, JSON mode, degradación a chat) +
+  `core/tool_dispatcher.py` (registro `BaseTool`; primera herramienta:
+  `system.status` determinista con telemetría real).
+- **Resiliencia con Tenacity** — 3 reintentos con backoff exponencial en
+  todas las llamadas a Groq.
+
 ## Corto plazo (siguiente iteración)
-
-### 1. Streaming de respuestas del LLM
-Hoy la respuesta llega completa y el typewriter la "actúa". Groq soporta
-`stream=True`: enviar deltas por el WebSocket (`ChatEvent` con `partial: true`)
-haría la latencia percibida casi cero y el typewriter sería real.
-**Tocaría:** `groq_client` (generador), `orchestrator` (loop de deltas),
-contrato `ChatEvent`, `useRocky` (append de deltas).
-
-### 2. Atajo global de teclado (Super+Espacio)
-El blueprint lo pide; hoy la voz se dispara desde la UI. Tauri tiene el plugin
-oficial `tauri-plugin-global-shortcut`: registrar el atajo en Rust y llamar al
-mismo `request_listen`. Cero cambios en Python.
-
-### 3. Intent parser + tool dispatcher (el gran salto)
-Separar "entender" de "ejecutar", como manda el blueprint:
-- `core/intent_parser.py`: Llama 3.3 con salida JSON estricta (Pydantic
-  `Intent`) — `{"tool": "spotify.play", "args": {...}}` o `{"tool": "chat"}`.
-- `core/tool_dispatcher.py`: registro de herramientas (`BaseTool`), ejecuta el
-  intent validado.
-Con esto, "pon música" deja de ser una respuesta sarcástica y pasa a ser una
-acción. El chat actual queda como herramienta por defecto (`chat`).
-
-### 4. Resiliencia con Tenacity
-Decorar las llamadas a Groq con reintentos + backoff exponencial (el blueprint
-lo exige y la dependencia es pequeña). Medir: hoy un fallo cae a fallback
-inmediatamente; con tenacity, 2-3 reintentos antes de rendirse.
-
-## Medio plazo
 
 ### 5. Spotify (`infrastructure/clients/spotify_client.py`)
 `spotipy` + OAuth (el redirect a `localhost:8000/callback` ya está previsto en

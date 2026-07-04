@@ -25,9 +25,17 @@ Funciona de punta a punta:
   Llama 3.3 → respuesta en pantalla + voz. La transcripción y la respuesta se
   ven en la consola; el estado del pipeline (escuchando/pensando/hablando) se
   refleja en vivo.
-- ✅ **Chat por texto** — input estilo prompt en la consola (Enter para
-  enviar). Rocky responde con efecto typewriter; si escribes en vez de
-  hablar, no reproduce audio.
+- ✅ **Chat por texto con streaming** — input estilo prompt en la consola
+  (Enter para enviar). La respuesta del LLM llega en deltas y se escribe en
+  vivo; si escribes en vez de hablar, no reproduce audio.
+- ✅ **Atajo global** — Super+Espacio (o Ctrl+Alt+Espacio si el compositor
+  ya lo usa) dispara la escucha aunque la ventana no tenga el foco.
+- ✅ **Intenciones y herramientas** — un modelo rápido (llama-3.1-8b-instant)
+  clasifica cada mensaje: las preguntas de estado del sistema las responde
+  una herramienta determinista con la telemetría real (cero LLM, cero red);
+  el resto va a conversación libre. Registro extensible (`BaseTool`).
+- ✅ **Resiliencia** — toda llamada a Groq lleva reintentos con backoff
+  exponencial (Tenacity) y degrada a fallback, nunca a crash.
 - ✅ **Memoria y contexto real** — Rocky recuerda los últimos turnos de la
   sesión y recibe la telemetría actual: "¿cómo va el sistema?" se responde
   con los números reales.
@@ -35,9 +43,8 @@ Funciona de punta a punta:
   de sonar al escuchar, gira un anillo al pensar, mueve una boca ecualizador
   al hablar y se sacude en rojo ante una alerta. Todo SVG + CSS (respeta
   `prefers-reduced-motion`).
-- 🔜 Roadmap detallado en [`docs/ROADMAP.md`](docs/ROADMAP.md): streaming del
-  LLM, atajo global de teclado, `intent_parser`/`tool_dispatcher`, Spotify,
-  Google Calendar, Tenacity.
+- 🔜 Roadmap detallado en [`docs/ROADMAP.md`](docs/ROADMAP.md): Spotify,
+  Google Calendar, historial persistente, wake word, empaquetado.
 
 ## Arquitectura
 
@@ -102,7 +109,7 @@ tipados en TypeScript (`src/hooks/useRocky.ts`).
 | Rust → Python | `{"action":"chat","text"}` | — | mensaje escrito por el usuario |
 | Python → Rust | `TelemetryAck` | — (no llega a UI) | `{status, cpu_received}` |
 | Python → Rust | `AlertEvent` | `system-alert` | `{type:"alert", level, resource, message}` |
-| Python → Rust | `ChatEvent` | `rocky-chat` | `{type:"chat", role:"user"\|"rocky", text}` |
+| Python → Rust | `ChatEvent` | `rocky-chat` | `{type:"chat", role, text, partial}` — `partial:true` = delta de streaming; el evento final trae el texto completo |
 | Python → Rust | `VoiceStateEvent` | `voice-state` | `{type:"voice", state, detail?}` |
 | Rust → UI | — | `system-stats` | `{cpu, ram}` |
 

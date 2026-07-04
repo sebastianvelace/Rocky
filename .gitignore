@@ -21,3 +21,6 @@ target/
 .DS_Store
 .idea/
 .vscode/
+
+# Tauri (artefactos generados)
+rocky-ui/src-tauri/gen/schemas/

@@ -82,14 +82,21 @@ pub fn spawn_python_telemetry_bridge(
                                     Some(Ok(Message::Text(text))) => {
                                         let txt = text.as_str();
                                         if let Ok(value) = serde_json::from_str::<Value>(txt) {
-                                            if value.get("type").and_then(|v| v.as_str())
-                                                == Some("alert")
+                                            // Contratos de Python → eventos Tauri hacia la UI.
+                                            let event = match value
+                                                .get("type")
+                                                .and_then(|v| v.as_str())
                                             {
-                                                if let Err(e) =
-                                                    app_handle.emit("system-alert", value)
-                                                {
+                                                Some("alert") => Some("system-alert"),
+                                                Some("chat") => Some("rocky-chat"),
+                                                Some("voice") => Some("voice-state"),
+                                                // Acks de telemetría y desconocidos: no van a la UI.
+                                                _ => None,
+                                            };
+                                            if let Some(event) = event {
+                                                if let Err(e) = app_handle.emit(event, value) {
                                                     eprintln!(
-                                                        "[rocky-python-ws] emit system-alert: {e}"
+                                                        "[rocky-python-ws] emit {event}: {e}"
                                                     );
                                                 }
                                             }

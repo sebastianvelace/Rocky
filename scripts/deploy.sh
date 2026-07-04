@@ -3,8 +3,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # venv Python (rocky-engine)
-python3.11 -m venv "${ROOT}/rocky-engine/.venv"
-"${ROOT}/rocky-engine/.venv/bin/pip" install -r "${ROOT}/rocky-engine/requirements.txt"
+# Debe llamarse `venv`: Tauri (main.rs) lanza el engine con rocky-engine/venv/bin/python3.
+python3 -m venv "${ROOT}/rocky-engine/venv"
+"${ROOT}/rocky-engine/venv/bin/pip" install -r "${ROOT}/rocky-engine/requirements.txt"
 
 # compilación Rust (rocky-ui / Tauri)
 if command -v cargo >/dev/null 2>&1; then

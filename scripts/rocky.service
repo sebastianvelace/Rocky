@@ -7,8 +7,7 @@ Type=simple
 User=rocky
 WorkingDirectory=/opt/rocky/rocky-engine
 EnvironmentFile=-/opt/rocky/.env
-# Sustituir por el punto de entrada real (p. ej. uvicorn/hypercorn).
-ExecStart=/bin/sleep infinity
+ExecStart=/opt/rocky/rocky-engine/venv/bin/python3 -m uvicorn src.main:app --host 127.0.0.1 --port 8000
 Restart=on-failure
 
 [Install]

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import deque
-from typing import Final
+from typing import Final, Iterator
 
 
 class GroqClient:
@@ -74,21 +74,13 @@ class GroqClient:
             self._logger.warning("Groq (telemetría) falló: %s", exc)
             return self._FALLBACK
 
-    def get_conversational_reply(
-        self, user_text: str, telemetry: tuple[float, float] | None = None
-    ) -> str:
-        """Respuesta conversacional con memoria de sesión y telemetría real.
+    @property
+    def fallback_text(self) -> str:
+        return self._FALLBACK
 
-        `telemetry` es el último `(cpu, ram)` conocido: Rocky puede responder
-        "¿cómo va el sistema?" con datos reales, no inventados.
-        """
-        if not self._client:
-            return self._FALLBACK
-
-        prompt = (user_text or "").strip()
-        if not prompt:
-            return self._FALLBACK
-
+    def _build_chat_messages(
+        self, prompt: str, telemetry: tuple[float, float] | None
+    ) -> list[dict[str, str]]:
         system = (
             "Eres Rocky, un asistente de ingeniería aeroespacial y software. "
             "Sé directo, profesional y con humor inteligente/sarcástico. "
@@ -100,24 +92,58 @@ class GroqClient:
                 f" Telemetría actual del equipo: CPU {cpu:.0f}%, RAM {ram:.0f}%. "
                 "Úsala solo si es relevante para la pregunta."
             )
+        return [
+            {"role": "system", "content": system},
+            *self._history,
+            {"role": "user", "content": prompt},
+        ]
 
+    def _remember_turn(self, prompt: str, reply: str) -> None:
+        self._history.append({"role": "user", "content": prompt})
+        self._history.append({"role": "assistant", "content": reply})
+
+    def stream_conversational_reply(
+        self, user_text: str, telemetry: tuple[float, float] | None = None
+    ) -> "Iterator[str]":
+        """Respuesta conversacional en streaming (deltas de texto).
+
+        Generador bloqueante (pensado para correr en un hilo). Con memoria de
+        sesión y telemetría real en contexto. Si Groq no está disponible,
+        emite el fallback como único delta; si el stream muere a mitad, lo ya
+        emitido se conserva y se recuerda en el historial.
+        """
+        prompt = (user_text or "").strip()
+        if not self._client or not prompt:
+            yield self._FALLBACK
+            return
+
+        emitted: list[str] = []
         try:
-            completion = self._client.chat.completions.create(
+            stream = self._client.chat.completions.create(
                 model=self._CHAT_MODEL,
-                messages=[
-                    {"role": "system", "content": system},
-                    *self._history,
-                    {"role": "user", "content": prompt},
-                ],
+                messages=self._build_chat_messages(prompt, telemetry),
                 temperature=0.7,
                 max_tokens=140,
+                stream=True,
             )
-            content = (completion.choices[0].message.content or "").strip()
-            if not content:
-                return self._FALLBACK
-            self._history.append({"role": "user", "content": prompt})
-            self._history.append({"role": "assistant", "content": content})
-            return content
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    emitted.append(delta)
+                    yield delta
         except Exception as exc:
-            self._logger.warning("Groq (chat) falló: %s", exc)
-            return self._FALLBACK
+            self._logger.warning("Groq (chat stream) falló: %s", exc)
+            if not emitted:
+                yield self._FALLBACK
+                return
+        finally:
+            full = "".join(emitted).strip()
+            if full:
+                self._remember_turn(prompt, full)
+
+    def get_conversational_reply(
+        self, user_text: str, telemetry: tuple[float, float] | None = None
+    ) -> str:
+        """Versión no-streaming: acumula el stream y devuelve el texto completo."""
+        parts = list(self.stream_conversational_reply(user_text, telemetry))
+        return "".join(parts).strip() or self._FALLBACK

@@ -100,7 +100,15 @@ function VoiceConsoleBase({
               </span>{" "}
               <span className="text-ink">
                 {msg.role === "rocky" ? (
-                  <TypewriterText text={msg.text} animate={i === lastIndex} />
+                  <>
+                    <TypewriterText
+                      text={msg.text}
+                      // El streaming ya "escribe" en vivo; el typewriter es
+                      // solo para mensajes que llegan de una pieza.
+                      animate={i === lastIndex && !msg.streaming && !msg.streamed}
+                    />
+                    {msg.streaming ? <span className="rocky-caret" aria-hidden /> : null}
+                  </>
                 ) : (
                   msg.text
                 )}

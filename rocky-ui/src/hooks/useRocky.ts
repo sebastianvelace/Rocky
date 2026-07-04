@@ -30,6 +30,10 @@ export type ChatMessage = {
   role: "user" | "rocky";
   text: string;
   ts: number;
+  /** El mensaje está llegando en deltas de streaming (mostrar cursor). */
+  streaming?: boolean;
+  /** El mensaje llegó por streaming: no re-animarlo con typewriter. */
+  streamed?: boolean;
 };
 
 export type VoiceState =
@@ -116,10 +120,38 @@ export function useRocky() {
         alertTimer.current = setTimeout(() => setAlert(null), ALERT_VISIBLE_MS);
       });
 
-      await register<{ role: "user" | "rocky"; text: string }>(
+      await register<{ role: "user" | "rocky"; text: string; partial?: boolean }>(
         "rocky-chat",
         (payload) => {
-          setChat((prev) => [...prev, { ...payload, ts: Date.now() }]);
+          setChat((prev) => {
+            const last = prev[prev.length - 1];
+            const lastIsStream =
+              last?.role === "rocky" && last.streaming === true;
+
+            if (payload.role === "rocky" && payload.partial) {
+              // Delta de streaming: anexar al mensaje en curso (o abrir uno).
+              if (lastIsStream) {
+                return [
+                  ...prev.slice(0, -1),
+                  { ...last, text: last.text + payload.text },
+                ];
+              }
+              return [
+                ...prev,
+                { role: "rocky", text: payload.text, ts: Date.now(), streaming: true },
+              ];
+            }
+
+            if (payload.role === "rocky" && lastIsStream) {
+              // Evento final: texto completo, cierra el mensaje en curso.
+              return [
+                ...prev.slice(0, -1),
+                { role: "rocky", text: payload.text, ts: last.ts, streamed: true },
+              ];
+            }
+
+            return [...prev, { role: payload.role, text: payload.text, ts: Date.now() }];
+          });
         }
       );
 

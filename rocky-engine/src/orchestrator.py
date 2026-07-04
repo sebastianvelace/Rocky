@@ -133,16 +133,48 @@ class RockyOrchestrator:
             return
         self._active_task = asyncio.get_running_loop().create_task(coro)
 
+    async def _stream_reply(self, websocket: WebSocket, text: str) -> str:
+        """Streaming del LLM → deltas `ChatEvent(partial=True)` → texto final.
+
+        El generador de Groq es bloqueante: corre en un hilo y empuja los
+        deltas a una cola del event loop para no congelar la telemetría.
+        """
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def producer() -> None:
+            try:
+                for delta in self._groq.stream_conversational_reply(
+                    text, self._last_telemetry
+                ):
+                    loop.call_soon_threadsafe(queue.put_nowait, delta)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        producer_future = loop.run_in_executor(None, producer)
+
+        parts: list[str] = []
+        while True:
+            delta = await queue.get()
+            if delta is None:
+                break
+            parts.append(delta)
+            await self._send(websocket, ChatEvent(role="rocky", text=delta, partial=True))
+        await producer_future
+
+        full = "".join(parts).strip() or self._groq.fallback_text
+        # Evento final: texto completo, cierra el mensaje en la UI.
+        await self._send(websocket, ChatEvent(role="rocky", text=full))
+        return full
+
     async def _chat_pipeline(self, websocket: WebSocket, text: str) -> None:
-        """Chat por texto: eco del usuario → LLM → respuesta. Sin TTS (si
-        Sebas escribe en vez de hablar, asumimos que no quiere audio)."""
+        """Chat por texto: eco del usuario → LLM (streaming) → respuesta.
+        Sin TTS (si Sebas escribe en vez de hablar, asumimos que no quiere
+        audio)."""
         try:
             await self._send(websocket, ChatEvent(role="user", text=text))
             await self._send(websocket, VoiceStateEvent(state="thinking"))
-            reply = await asyncio.to_thread(
-                self._groq.get_conversational_reply, text, self._last_telemetry
-            )
-            await self._send(websocket, ChatEvent(role="rocky", text=reply))
+            await self._stream_reply(websocket, text)
         except Exception as exc:
             self._logger.warning("[CHAT] Error en flujo LLM: %s", exc)
             try:
@@ -170,10 +202,7 @@ class RockyOrchestrator:
             await self._send(websocket, ChatEvent(role="user", text=user_text))
             await self._send(websocket, VoiceStateEvent(state="thinking"))
 
-            reply = await asyncio.to_thread(
-                self._groq.get_conversational_reply, user_text, self._last_telemetry
-            )
-            await self._send(websocket, ChatEvent(role="rocky", text=reply))
+            reply = await self._stream_reply(websocket, user_text)
 
             await self._send(websocket, VoiceStateEvent(state="speaking"))
             await self._tts.speak(reply)

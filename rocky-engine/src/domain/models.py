@@ -49,7 +49,9 @@ class AlertEvent(BaseModel):
 class ChatEvent(BaseModel):
     """Turno de conversación (transcripción del usuario o respuesta de Rocky).
 
-    Rust lo reenvía a la UI como `rocky-chat`.
+    Rust lo reenvía a la UI como `rocky-chat`. Con `partial=True` el texto es
+    un delta de streaming que la UI anexa al mensaje en curso; el evento final
+    (`partial=False`) trae el texto completo y cierra el mensaje.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -57,6 +59,7 @@ class ChatEvent(BaseModel):
     type: Literal["chat"] = "chat"
     role: Literal["user", "rocky"]
     text: str
+    partial: bool = False
 
 
 class VoiceStateEvent(BaseModel):

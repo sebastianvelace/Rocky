@@ -120,10 +120,20 @@ class TestChatFlow:
             chats = [e for e in events if e.get("type") == "chat"]
             states = [e["state"] for e in events if e.get("type") == "voice"]
 
-            assert chats[0] == {"type": "chat", "role": "user", "text": "hola rocky"}
-            assert chats[1]["role"] == "rocky"
+            assert chats[0]["role"] == "user"
+            assert chats[0]["text"] == "hola rocky"
+            assert chats[0]["partial"] is False
+
+            # Protocolo de streaming: ≥1 delta parcial y un final con el
+            # texto completo (la concatenación de los deltas).
+            partials = [c for c in chats[1:] if c["partial"]]
+            finals = [c for c in chats[1:] if not c["partial"]]
+            assert len(partials) >= 1
+            assert len(finals) == 1
+            assert all(c["role"] == "rocky" for c in chats[1:])
             # Sin GROQ_API_KEY responde el fallback, pero nunca vacío.
-            assert chats[1]["text"].strip() != ""
+            assert finals[0]["text"].strip() != ""
+            assert finals[0]["text"] == "".join(c["text"] for c in partials).strip()
             assert "thinking" in states
 
     def test_empty_chat_text_is_ignored(self, client: TestClient) -> None:

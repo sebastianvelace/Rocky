@@ -3,7 +3,9 @@ from __future__ import annotations
 import logging
 import os
 from collections import deque
-from typing import Final, Iterator
+from typing import Any, Final, Iterator
+
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 class GroqClient:
@@ -43,7 +45,7 @@ class GroqClient:
             return self._FALLBACK
 
         try:
-            completion = self._client.chat.completions.create(
+            completion = self._create_completion(
                 model=self._CHAT_MODEL,
                 messages=[
                     {
@@ -81,6 +83,18 @@ class GroqClient:
     def fallback_text(self) -> str:
         return self._FALLBACK
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=0.5, max=4),
+        reraise=True,
+    )
+    def _create_completion(self, **kwargs: Any) -> Any:
+        """Única puerta hacia la API de Groq: reintentos con backoff
+        exponencial (blueprint: no asumas que la red funciona). Tras el
+        tercer intento re-lanza y el llamador degrada a su fallback."""
+        assert self._client is not None
+        return self._client.chat.completions.create(**kwargs)
+
     def get_intent_json(self, user_text: str, tools_prompt: str) -> str | None:
         """Clasifica el mensaje en una herramienta. Devuelve el JSON crudo
         (lo valida el IntentParser) o None si Groq no está disponible/falla."""
@@ -92,7 +106,7 @@ class GroqClient:
             return None
 
         try:
-            completion = self._client.chat.completions.create(
+            completion = self._create_completion(
                 model=self._INTENT_MODEL,
                 messages=[
                     {
@@ -156,7 +170,7 @@ class GroqClient:
 
         emitted: list[str] = []
         try:
-            stream = self._client.chat.completions.create(
+            stream = self._create_completion(
                 model=self._CHAT_MODEL,
                 messages=self._build_chat_messages(prompt, telemetry),
                 temperature=0.7,

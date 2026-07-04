@@ -20,9 +20,7 @@ from src.orchestrator import RockyOrchestrator
 AUTH_HEADERS = {"x-rocky-auth-token": "test-token-123"}
 
 
-@pytest.fixture()
-def client() -> TestClient:
-    """App fresca por test: el cooldown y los contadores no se filtran entre tests."""
+def build_app() -> tuple[FastAPI, RockyOrchestrator]:
     app = FastAPI()
     orchestrator = RockyOrchestrator(
         analyzer=SystemAnalyzer(),
@@ -31,6 +29,13 @@ def client() -> TestClient:
         stt_manager=STTManager(),
     )
     app.include_router(create_ws_router(RockySecurity(), orchestrator))
+    return app, orchestrator
+
+
+@pytest.fixture()
+def client() -> TestClient:
+    """App fresca por test: el cooldown y los contadores no se filtran entre tests."""
+    app, _ = build_app()
     return TestClient(app)
 
 
@@ -98,3 +103,42 @@ class TestTelemetryFlow:
 
             assert len(alerts) == 1  # la segunda queda silenciada por cooldown
             assert alerts[0]["message"].strip() != ""
+
+
+class TestChatFlow:
+    def test_chat_action_echoes_user_and_replies(self, client: TestClient) -> None:
+        with client.websocket_connect("/ws", headers=AUTH_HEADERS) as ws:
+            ws.send_text(json.dumps({"action": "chat", "text": "hola rocky"}))
+
+            events = []
+            while True:
+                message = json.loads(ws.receive_text())
+                events.append(message)
+                if message.get("type") == "voice" and message.get("state") == "idle":
+                    break
+
+            chats = [e for e in events if e.get("type") == "chat"]
+            states = [e["state"] for e in events if e.get("type") == "voice"]
+
+            assert chats[0] == {"type": "chat", "role": "user", "text": "hola rocky"}
+            assert chats[1]["role"] == "rocky"
+            # Sin GROQ_API_KEY responde el fallback, pero nunca vacío.
+            assert chats[1]["text"].strip() != ""
+            assert "thinking" in states
+
+    def test_empty_chat_text_is_ignored(self, client: TestClient) -> None:
+        with client.websocket_connect("/ws", headers=AUTH_HEADERS) as ws:
+            ws.send_text(json.dumps({"action": "chat", "text": "   "}))
+            # La conexión sigue viva: la telemetría posterior responde normal.
+            ws.send_text(json.dumps({"cpu": 5, "ram": 20}))
+            ack = json.loads(ws.receive_text())
+            assert ack["status"] == "ok"
+
+    def test_chat_uses_latest_telemetry_as_context(self) -> None:
+        """El orquestador cachea el último (cpu, ram) para dárselo al LLM."""
+        app, orchestrator = build_app()
+        client = TestClient(app)
+        with client.websocket_connect("/ws", headers=AUTH_HEADERS) as ws:
+            ws.send_text(json.dumps({"cpu": 42.0, "ram": 33.0}))
+            json.loads(ws.receive_text())  # ack
+        assert orchestrator._last_telemetry == (42.0, 33.0)

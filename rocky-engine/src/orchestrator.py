@@ -47,7 +47,10 @@ class RockyOrchestrator:
         self._stt = stt_manager
         self._ai_cooldown_seconds = ai_cooldown_seconds
         self._last_ai_alert_time = 0.0
-        self._voice_task: asyncio.Task[None] | None = None
+        # Último (cpu, ram) conocido: se inyecta como contexto en el chat.
+        self._last_telemetry: tuple[float, float] | None = None
+        # Un solo pipeline interactivo (voz o chat) a la vez.
+        self._active_task: asyncio.Task[None] | None = None
         # Starlette no garantiza envíos concurrentes seguros sobre el mismo
         # socket; el pipeline de voz y la telemetría escriben en paralelo.
         self._send_lock = asyncio.Lock()
@@ -59,8 +62,14 @@ class RockyOrchestrator:
             self._logger.error("[DATA] Mensaje no es un objeto JSON: %r", data)
             return
 
-        if data.get("action") == "listen":
-            self._spawn_voice_pipeline(websocket)
+        action = data.get("action")
+        if action == "listen":
+            self._spawn_exclusive(self._voice_pipeline(websocket))
+            return
+        if action == "chat":
+            text = str(data.get("text") or "").strip()
+            if text:
+                self._spawn_exclusive(self._chat_pipeline(websocket, text))
             return
 
         await self._handle_telemetry(websocket, data)
@@ -82,6 +91,7 @@ class RockyOrchestrator:
         self._logger.debug(
             "[DATA] Telemetría validada: CPU=%s%% RAM=%s%%", model.cpu, model.ram
         )
+        self._last_telemetry = (model.cpu, model.ram)
         await self._send(websocket, TelemetryAck(status="ok", cpu_received=model.cpu))
 
         alert = self._analyzer.analyze(model)
@@ -109,16 +119,41 @@ class RockyOrchestrator:
             self._logger.warning("No se pudo iniciar TTS: %s", exc)
 
     # ------------------------------------------------------------------
-    # Voz
+    # Voz y chat
     # ------------------------------------------------------------------
-    def _spawn_voice_pipeline(self, websocket: WebSocket) -> None:
-        """Lanza el pipeline de voz como tarea para no bloquear la telemetría."""
-        if self._voice_task is not None and not self._voice_task.done():
-            self._logger.info("[VOICE] Pipeline ya en curso; se ignora la petición.")
+    def _spawn_exclusive(self, coro: Any) -> None:
+        """Lanza un pipeline interactivo como tarea (la telemetría no se bloquea).
+
+        Solo uno a la vez: si ya hay voz o chat en curso, la petición se ignora
+        (la UI deshabilita los controles, esto es la red de seguridad).
+        """
+        if self._active_task is not None and not self._active_task.done():
+            self._logger.info("[PIPELINE] Ya hay uno en curso; se ignora la petición.")
+            coro.close()
             return
-        self._voice_task = asyncio.get_running_loop().create_task(
-            self._voice_pipeline(websocket)
-        )
+        self._active_task = asyncio.get_running_loop().create_task(coro)
+
+    async def _chat_pipeline(self, websocket: WebSocket, text: str) -> None:
+        """Chat por texto: eco del usuario → LLM → respuesta. Sin TTS (si
+        Sebas escribe en vez de hablar, asumimos que no quiere audio)."""
+        try:
+            await self._send(websocket, ChatEvent(role="user", text=text))
+            await self._send(websocket, VoiceStateEvent(state="thinking"))
+            reply = await asyncio.to_thread(
+                self._groq.get_conversational_reply, text, self._last_telemetry
+            )
+            await self._send(websocket, ChatEvent(role="rocky", text=reply))
+        except Exception as exc:
+            self._logger.warning("[CHAT] Error en flujo LLM: %s", exc)
+            try:
+                await self._send(websocket, VoiceStateEvent(state="error", detail=str(exc)))
+            except Exception:
+                pass
+        finally:
+            try:
+                await self._send(websocket, VoiceStateEvent(state="idle"))
+            except Exception:
+                pass
 
     async def _voice_pipeline(self, websocket: WebSocket) -> None:
         try:
@@ -135,7 +170,9 @@ class RockyOrchestrator:
             await self._send(websocket, ChatEvent(role="user", text=user_text))
             await self._send(websocket, VoiceStateEvent(state="thinking"))
 
-            reply = await asyncio.to_thread(self._groq.get_conversational_reply, user_text)
+            reply = await asyncio.to_thread(
+                self._groq.get_conversational_reply, user_text, self._last_telemetry
+            )
             await self._send(websocket, ChatEvent(role="rocky", text=reply))
 
             await self._send(websocket, VoiceStateEvent(state="speaking"))

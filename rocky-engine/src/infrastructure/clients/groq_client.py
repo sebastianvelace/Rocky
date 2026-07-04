@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections import deque
 from typing import Final
 
 
@@ -11,11 +12,16 @@ class GroqClient:
     # silenciosamente al mensaje de fallback.
     _CHAT_MODEL: Final[str] = "llama-3.3-70b-versatile"
     _FALLBACK: Final[str] = "Sistema bajo carga, Sebas. Groq está offline."
+    # Turnos (user+assistant) que se recuerdan por sesión.
+    _HISTORY_MAX_MESSAGES: Final[int] = 12
 
     def __init__(self) -> None:
         self._logger = logging.getLogger("rocky.groq")
         self._api_key = os.getenv("GROQ_API_KEY")
         self._client = None
+        # Memoria conversacional de la sesión: sin ella cada mensaje era un
+        # borrón y cuenta nueva y no se podía hilar una conversación.
+        self._history: deque[dict[str, str]] = deque(maxlen=self._HISTORY_MAX_MESSAGES)
         if not self._api_key:
             self._logger.warning("GROQ_API_KEY no definido: se usarán respuestas de fallback")
             return
@@ -68,8 +74,14 @@ class GroqClient:
             self._logger.warning("Groq (telemetría) falló: %s", exc)
             return self._FALLBACK
 
-    def get_conversational_reply(self, user_text: str) -> str:
-        """Respuesta conversacional concisa y sarcástica (Llama 3.3)."""
+    def get_conversational_reply(
+        self, user_text: str, telemetry: tuple[float, float] | None = None
+    ) -> str:
+        """Respuesta conversacional con memoria de sesión y telemetría real.
+
+        `telemetry` es el último `(cpu, ram)` conocido: Rocky puede responder
+        "¿cómo va el sistema?" con datos reales, no inventados.
+        """
         if not self._client:
             return self._FALLBACK
 
@@ -77,25 +89,35 @@ class GroqClient:
         if not prompt:
             return self._FALLBACK
 
+        system = (
+            "Eres Rocky, un asistente de ingeniería aeroespacial y software. "
+            "Sé directo, profesional y con humor inteligente/sarcástico. "
+            "Responde en español, conciso (1-2 frases). El usuario se llama Sebas."
+        )
+        if telemetry is not None:
+            cpu, ram = telemetry
+            system += (
+                f" Telemetría actual del equipo: CPU {cpu:.0f}%, RAM {ram:.0f}%. "
+                "Úsala solo si es relevante para la pregunta."
+            )
+
         try:
             completion = self._client.chat.completions.create(
                 model=self._CHAT_MODEL,
                 messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "Eres Rocky, un asistente de ingeniería aeroespacial y software. "
-                            "Sé directo, profesional y con humor inteligente/sarcástico. "
-                            "Responde en español, conciso (1-2 frases). El usuario se llama Sebas."
-                        ),
-                    },
+                    {"role": "system", "content": system},
+                    *self._history,
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,
                 max_tokens=140,
             )
             content = (completion.choices[0].message.content or "").strip()
-            return content if content else self._FALLBACK
+            if not content:
+                return self._FALLBACK
+            self._history.append({"role": "user", "content": prompt})
+            self._history.append({"role": "assistant", "content": content})
+            return content
         except Exception as exc:
             self._logger.warning("Groq (chat) falló: %s", exc)
             return self._FALLBACK

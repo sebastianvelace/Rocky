@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SystemTelemetry(BaseModel):
@@ -60,6 +60,19 @@ class ChatEvent(BaseModel):
     role: Literal["user", "rocky"]
     text: str
     partial: bool = False
+
+
+class Intent(BaseModel):
+    """Intención estructurada extraída del texto del usuario por el LLM.
+
+    `tool="chat"` es el default: conversación libre (streaming). Cualquier
+    otro valor se busca en el registro del ToolDispatcher.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool: str = "chat"
+    args: dict[str, Any] = Field(default_factory=dict)
 
 
 class VoiceStateEvent(BaseModel):

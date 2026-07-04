@@ -11,6 +11,9 @@ class GroqClient:
     # ("llama-3-70b-8192") no existe en Groq, por lo que toda alerta caía
     # silenciosamente al mensaje de fallback.
     _CHAT_MODEL: Final[str] = "llama-3.3-70b-versatile"
+    # Clasificación de intenciones: modelo pequeño y rápido — añade el mínimo
+    # de latencia posible antes de la respuesta real.
+    _INTENT_MODEL: Final[str] = "llama-3.1-8b-instant"
     _FALLBACK: Final[str] = "Sistema bajo carga, Sebas. Groq está offline."
     # Turnos (user+assistant) que se recuerdan por sesión.
     _HISTORY_MAX_MESSAGES: Final[int] = 12
@@ -77,6 +80,40 @@ class GroqClient:
     @property
     def fallback_text(self) -> str:
         return self._FALLBACK
+
+    def get_intent_json(self, user_text: str, tools_prompt: str) -> str | None:
+        """Clasifica el mensaje en una herramienta. Devuelve el JSON crudo
+        (lo valida el IntentParser) o None si Groq no está disponible/falla."""
+        if not self._client:
+            return None
+
+        prompt = (user_text or "").strip()
+        if not prompt:
+            return None
+
+        try:
+            completion = self._client.chat.completions.create(
+                model=self._INTENT_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Clasifica el mensaje del usuario en UNA herramienta. "
+                            'Responde SOLO un objeto JSON: {"tool": "<nombre>", "args": {}}. '
+                            f"Herramientas disponibles:\n{tools_prompt}\n"
+                            'Si ninguna aplica claramente, usa {"tool": "chat", "args": {}}.'
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.0,
+                max_tokens=80,
+                response_format={"type": "json_object"},
+            )
+            return (completion.choices[0].message.content or "").strip() or None
+        except Exception as exc:
+            self._logger.warning("Groq (intent) falló: %s", exc)
+            return None
 
     def _build_chat_messages(
         self, prompt: str, telemetry: tuple[float, float] | None

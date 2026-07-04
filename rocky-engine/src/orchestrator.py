@@ -16,6 +16,8 @@ from fastapi import WebSocket
 from pydantic import BaseModel, ValidationError
 
 from src.core.analyzer import SystemAnalyzer
+from src.core.intent_parser import IntentParser
+from src.core.tool_dispatcher import ToolDispatcher
 from src.domain.models import (
     AlertEvent,
     ChatEvent,
@@ -40,11 +42,17 @@ class RockyOrchestrator:
         tts_manager: TTSManager,
         stt_manager: STTManager,
         ai_cooldown_seconds: float = AI_COOLDOWN_SECONDS,
+        dispatcher: ToolDispatcher | None = None,
+        intent_parser: IntentParser | None = None,
     ) -> None:
         self._analyzer = analyzer
         self._groq = groq_client
         self._tts = tts_manager
         self._stt = stt_manager
+        self._dispatcher = dispatcher or ToolDispatcher()
+        self._parser = intent_parser or IntentParser(
+            groq_client, self._dispatcher.tools_prompt
+        )
         self._ai_cooldown_seconds = ai_cooldown_seconds
         self._last_ai_alert_time = 0.0
         # Último (cpu, ram) conocido: se inyecta como contexto en el chat.
@@ -133,6 +141,16 @@ class RockyOrchestrator:
             return
         self._active_task = asyncio.get_running_loop().create_task(coro)
 
+    async def _respond(self, websocket: WebSocket, text: str) -> str:
+        """Parsea la intención y responde: herramienta determinista si aplica,
+        conversación libre (streaming) en cualquier otro caso."""
+        intent = await asyncio.to_thread(self._parser.parse, text)
+        tool_result = await self._dispatcher.dispatch(intent, self._last_telemetry)
+        if tool_result is not None:
+            await self._send(websocket, ChatEvent(role="rocky", text=tool_result))
+            return tool_result
+        return await self._stream_reply(websocket, text)
+
     async def _stream_reply(self, websocket: WebSocket, text: str) -> str:
         """Streaming del LLM → deltas `ChatEvent(partial=True)` → texto final.
 
@@ -174,7 +192,7 @@ class RockyOrchestrator:
         try:
             await self._send(websocket, ChatEvent(role="user", text=text))
             await self._send(websocket, VoiceStateEvent(state="thinking"))
-            await self._stream_reply(websocket, text)
+            await self._respond(websocket, text)
         except Exception as exc:
             self._logger.warning("[CHAT] Error en flujo LLM: %s", exc)
             try:
@@ -202,7 +220,7 @@ class RockyOrchestrator:
             await self._send(websocket, ChatEvent(role="user", text=user_text))
             await self._send(websocket, VoiceStateEvent(state="thinking"))
 
-            reply = await self._stream_reply(websocket, user_text)
+            reply = await self._respond(websocket, user_text)
 
             await self._send(websocket, VoiceStateEvent(state="speaking"))
             await self._tts.speak(reply)

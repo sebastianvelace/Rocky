@@ -21,12 +21,23 @@ Funciona de punta a punta:
 - ✅ **Alertas proactivas con IA** — CPU > 80 % o RAM > 90 % sostenidas 3 s
   disparan un consejo generado por Llama 3.3, mostrado en la UI y hablado por
   TTS. Cooldown de 60 s para no spamear.
-- ✅ **Voz conversacional** — botón *Hablar* → micrófono → Whisper (Groq) →
+- ✅ **Voz conversacional** — botón de micrófono → Whisper (Groq) →
   Llama 3.3 → respuesta en pantalla + voz. La transcripción y la respuesta se
   ven en la consola; el estado del pipeline (escuchando/pensando/hablando) se
   refleja en vivo.
-- 🔜 Roadmap: atajo global de teclado, `intent_parser`/`tool_dispatcher`
-  (acciones deterministas), Spotify, Google Calendar, reintentos con Tenacity.
+- ✅ **Chat por texto** — input estilo prompt en la consola (Enter para
+  enviar). Rocky responde con efecto typewriter; si escribes en vez de
+  hablar, no reproduce audio.
+- ✅ **Memoria y contexto real** — Rocky recuerda los últimos turnos de la
+  sesión y recibe la telemetría actual: "¿cómo va el sistema?" se responde
+  con los números reales.
+- ✅ **Avatar animado** — Rocky respira y parpadea en reposo, emite anillos
+  de sonar al escuchar, gira un anillo al pensar, mueve una boca ecualizador
+  al hablar y se sacude en rojo ante una alerta. Todo SVG + CSS (respeta
+  `prefers-reduced-motion`).
+- 🔜 Roadmap detallado en [`docs/ROADMAP.md`](docs/ROADMAP.md): streaming del
+  LLM, atajo global de teclado, `intent_parser`/`tool_dispatcher`, Spotify,
+  Google Calendar, Tenacity.
 
 ## Arquitectura
 
@@ -88,6 +99,7 @@ tipados en TypeScript (`src/hooks/useRocky.ts`).
 |---|---|---|---|
 | Rust → Python | `{cpu, ram}` | — | telemetría cada 1 s |
 | Rust → Python | `{"action":"listen"}` | — | iniciar pipeline de voz |
+| Rust → Python | `{"action":"chat","text"}` | — | mensaje escrito por el usuario |
 | Python → Rust | `TelemetryAck` | — (no llega a UI) | `{status, cpu_received}` |
 | Python → Rust | `AlertEvent` | `system-alert` | `{type:"alert", level, resource, message}` |
 | Python → Rust | `ChatEvent` | `rocky-chat` | `{type:"chat", role:"user"\|"rocky", text}` |

@@ -24,3 +24,4 @@ target/
 
 # Tauri (artefactos generados)
 rocky-ui/src-tauri/gen/schemas/
+rocky-ui/tsconfig.tsbuildinfo

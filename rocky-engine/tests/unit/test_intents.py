@@ -3,7 +3,8 @@
 import pytest
 
 from src.core.intent_parser import IntentParser
-from src.core.tool_dispatcher import SystemStatusTool, ToolDispatcher
+from src.core.tool_dispatcher import ToolDispatcher
+from src.core.tools.system import SystemStatusTool
 from src.domain.models import Intent
 from src.infrastructure.clients.groq_client import GroqClient
 

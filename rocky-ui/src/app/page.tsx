@@ -3,6 +3,7 @@
 import { Cpu, MemoryStick } from "lucide-react";
 import { AlertBanner } from "../components/AlertBanner";
 import { StatGauge } from "../components/StatGauge";
+import { TopProcesses } from "../components/TopProcesses";
 import { VoiceConsole } from "../components/VoiceConsole";
 import { useRocky } from "../hooks/useRocky";
 
@@ -54,7 +55,7 @@ export default function Page() {
 
       <AlertBanner alert={alert} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
         <StatGauge
           label="CPU"
           icon={<Cpu size={14} aria-hidden />}
@@ -71,6 +72,7 @@ export default function Page() {
           color={RAM_COLOR}
           threshold={RAM_THRESHOLD}
         />
+        <TopProcesses top={stats.top ?? []} />
       </div>
 
       <VoiceConsole

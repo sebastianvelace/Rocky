@@ -27,12 +27,12 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
   (XDG); los últimos turnos se recargan al arrancar; degradación a RAM si el
   disco falla.
 
-## Corto plazo (siguiente iteración)
+- **Contexto de procesos** — Rust envía el top de procesos (agregados por
+  nombre, CPU normalizada por núcleos); herramienta determinista
+  `system.top`; el chat libre recibe los 3 más pesados en contexto; panel
+  de procesos en vivo en la UI.
 
-### 7. Contexto del sistema para el LLM
-Top de procesos por CPU/RAM (sysinfo ya los conoce, Rust tendría que
-enviarlos) para que "¿qué está comiendo la RAM?" tenga respuesta real, y
-quizá una herramienta `system.top` determinista.
+## Corto plazo (siguiente iteración)
 
 ### 8. Más telemetría
 Temperaturas, GPU (nvml), disco y red. El contrato `SystemTelemetry` crece con

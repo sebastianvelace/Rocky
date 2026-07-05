@@ -6,6 +6,7 @@ import asyncio
 from typing import Any
 
 from src.domain.interfaces import BaseTool
+from src.domain.models import SystemTelemetry
 from src.infrastructure.clients.gcalendar_client import NOT_CONFIGURED, GCalendarClient
 
 
@@ -20,7 +21,7 @@ class CalendarTodayTool(BaseTool):
         self._client = client
 
     async def run(
-        self, args: dict[str, Any], telemetry: tuple[float, float] | None
+        self, args: dict[str, Any], telemetry: "SystemTelemetry | None"
     ) -> str:
         if not self._client.available:
             return NOT_CONFIGURED

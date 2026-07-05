@@ -28,6 +28,32 @@ class TestSystemTelemetry:
         with pytest.raises(ValidationError):
             SystemTelemetry.model_validate({"cpu": 1.0, "ram": 2.0, "gpu": 3.0})
 
+    def test_top_defaults_to_empty(self) -> None:
+        # Compatibilidad con emisores antiguos que no envían procesos.
+        assert SystemTelemetry.model_validate({"cpu": 1.0, "ram": 2.0}).top == []
+
+    def test_parses_top_processes_with_int_coercion(self) -> None:
+        t = SystemTelemetry.model_validate(
+            {
+                "cpu": 10.0,
+                "ram": 20.0,
+                "top": [{"name": "chrome", "cpu": 40, "mem_mb": 2048}],
+            }
+        )
+        assert t.top[0].name == "chrome"
+        assert t.top[0].cpu == 40.0
+        assert isinstance(t.top[0].mem_mb, float)
+
+    def test_top_process_rejects_extra_fields(self) -> None:
+        with pytest.raises(ValidationError):
+            SystemTelemetry.model_validate(
+                {
+                    "cpu": 1.0,
+                    "ram": 2.0,
+                    "top": [{"name": "x", "cpu": 1, "mem_mb": 1, "pid": 42}],
+                }
+            )
+
 
 class TestOutboundEvents:
     def test_alert_event_serializes_contract(self) -> None:

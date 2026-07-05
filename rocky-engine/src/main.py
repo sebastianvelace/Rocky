@@ -22,6 +22,7 @@ from src.core.tools import (
     SpotifyPauseTool,
     SpotifyPlayTool,
     SystemStatusTool,
+    SystemTopTool,
 )
 from src.infrastructure.audio.stt_manager import STTManager
 from src.infrastructure.audio.tts_manager import TTSManager
@@ -41,6 +42,7 @@ gcalendar = GCalendarClient()
 dispatcher = ToolDispatcher(
     tools=[
         SystemStatusTool(),
+        SystemTopTool(),
         SpotifyPlayTool(spotify),
         SpotifyPauseTool(spotify),
         SpotifyNextTool(spotify),

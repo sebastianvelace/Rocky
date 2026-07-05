@@ -18,20 +18,21 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
 
 ## Corto plazo (siguiente iteración)
 
-### 5. Spotify (`infrastructure/clients/spotify_client.py`)
-`spotipy` + OAuth (el redirect a `localhost:8000/callback` ya está previsto en
-el `.env`). Herramientas: play/pause, siguiente, buscar y reproducir. Encaja
-detrás del tool dispatcher (#3), no antes.
+- **Spotify** — `spotify.play` (busca y reproduce, o reanuda), `spotify.pause`
+  y `spotify.next` con spotipy + OAuth cacheado; mensajes humanos sin
+  credenciales o sin dispositivo activo.
+- **Google Calendar** — `calendar.today` lista la agenda del día; soporta
+  service account y OAuth de usuario (detección automática del JSON).
+- **Historial persistente** — SQLite en `~/.local/share/rocky/history.db`
+  (XDG); los últimos turnos se recargan al arrancar; degradación a RAM si el
+  disco falla.
 
-### 6. Google Calendar
-`google-api-python-client`: "¿qué tengo hoy?" → lista de eventos en la consola
-y por voz. También detrás del dispatcher.
+## Corto plazo (siguiente iteración)
 
-### 7. Historial persistente y contexto del sistema
-- Guardar la conversación en SQLite (`~/.local/share/rocky/history.db`) para
-  que la memoria sobreviva reinicios.
-- Enriquecer el contexto del LLM: top de procesos por CPU/RAM (ya que sysinfo
-  los conoce) para que "¿qué está comiendo la RAM?" tenga respuesta real.
+### 7. Contexto del sistema para el LLM
+Top de procesos por CPU/RAM (sysinfo ya los conoce, Rust tendría que
+enviarlos) para que "¿qué está comiendo la RAM?" tenga respuesta real, y
+quizá una herramienta `system.top` determinista.
 
 ### 8. Más telemetría
 Temperaturas, GPU (nvml), disco y red. El contrato `SystemTelemetry` crece con

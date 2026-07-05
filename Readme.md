@@ -34,6 +34,14 @@ Funciona de punta a punta:
   clasifica cada mensaje: las preguntas de estado del sistema las responde
   una herramienta determinista con la telemetría real (cero LLM, cero red);
   el resto va a conversación libre. Registro extensible (`BaseTool`).
+- ✅ **Spotify** — "pon música de Queen", "pausa", "siguiente" ejecutan
+  acciones reales (`spotipy`, OAuth). Sin credenciales, Rocky explica cómo
+  configurarlo en vez de fallar.
+- ✅ **Google Calendar** — "¿qué tengo hoy?" lista la agenda del día
+  (service account u OAuth de usuario, detectado automáticamente).
+- ✅ **Memoria persistente** — la conversación se guarda en SQLite
+  (`~/.local/share/rocky/history.db`) y los últimos turnos se recargan al
+  arrancar: reiniciar Rocky ya no es amnesia total.
 - ✅ **Resiliencia** — toda llamada a Groq lleva reintentos con backoff
   exponencial (Tenacity) y degrada a fallback, nunca a crash.
 - ✅ **Memoria y contexto real** — Rocky recuerda los últimos turnos de la
@@ -43,8 +51,8 @@ Funciona de punta a punta:
   de sonar al escuchar, gira un anillo al pensar, mueve una boca ecualizador
   al hablar y se sacude en rojo ante una alerta. Todo SVG + CSS (respeta
   `prefers-reduced-motion`).
-- 🔜 Roadmap detallado en [`docs/ROADMAP.md`](docs/ROADMAP.md): Spotify,
-  Google Calendar, historial persistente, wake word, empaquetado.
+- 🔜 Roadmap detallado en [`docs/ROADMAP.md`](docs/ROADMAP.md): más
+  telemetría (GPU/temperaturas), wake word, modo tray, empaquetado.
 
 ## Arquitectura
 

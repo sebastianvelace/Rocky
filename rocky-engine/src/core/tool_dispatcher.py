@@ -9,36 +9,10 @@ conversación libre con streaming.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
+from src.core.tools.system import SystemStatusTool
 from src.domain.interfaces import BaseTool
 from src.domain.models import Intent
-
-
-class SystemStatusTool(BaseTool):
-    """Estado del sistema con los datos reales de telemetría. Determinista:
-    cero LLM, cero red — responde aunque Groq esté caído."""
-
-    name = "system.status"
-    description = (
-        "system.status: el usuario pregunta cómo va el sistema, el estado "
-        "actual de CPU, RAM, recursos o rendimiento del equipo."
-    )
-
-    async def run(
-        self, args: dict[str, Any], telemetry: tuple[float, float] | None
-    ) -> str:
-        if telemetry is None:
-            return "Aún no tengo telemetría, Sebas. Dame un segundo y vuelve a preguntar."
-
-        cpu, ram = telemetry
-        if cpu > 80.0 or ram > 90.0:
-            verdict = "Vamos justos: considera cerrar algo pesado."
-        elif cpu > 50.0 or ram > 70.0:
-            verdict = "Carga moderada, nada preocupante."
-        else:
-            verdict = "Todo nominal."
-        return f"CPU al {cpu:.0f}%, RAM al {ram:.0f}%. {verdict}"
 
 
 class ToolDispatcher:

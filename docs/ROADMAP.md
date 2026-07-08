@@ -59,5 +59,3 @@ secundarias.
 - `httpx`/TestClient emite un DeprecationWarning de Starlette (cosmético).
 - El engine asume un único cliente WebSocket (el puente Rust); si algún día
   hay más, el estado del orquestador debe ser por conexión.
-- `tauri.conf.json` tiene `"icon": []` — para `tauri build` hay que declarar
-  los íconos (existen en `src-tauri/icons/`).

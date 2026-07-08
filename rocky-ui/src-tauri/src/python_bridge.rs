@@ -17,15 +17,14 @@ use url::Url;
 
 use crate::telemetry::SystemStats;
 
-const PYTHON_WS_URL: &str = "ws://127.0.0.1:8000/ws";
 const RECONNECT_SECS: u64 = 5;
 
 /// Handshake WebSocket correcto: `into_client_request()` rellena Upgrade, Connection,
 /// Sec-WebSocket-Key, Sec-WebSocket-Version, Host; luego añadimos el token Rocky.
-fn build_ws_request(token: &str) -> WsResult<Request<()>> {
-    let url: Url = PYTHON_WS_URL
+fn build_ws_request(python_ws_url: &str, token: &str) -> WsResult<Request<()>> {
+    let url: Url = python_ws_url
         .parse()
-        .expect("PYTHON_WS_URL is a static valid ws:// URL");
+        .expect("python_ws_url is generated from a valid local ws:// URL");
 
     let mut request = url.into_client_request()?;
 
@@ -40,6 +39,7 @@ fn build_ws_request(token: &str) -> WsResult<Request<()>> {
 /// Mantiene la conexión con Python: reconecta cada [`RECONNECT_SECS`] si falla o se corta.
 /// Recibe los mismos [`SystemStats`] que se emiten a la UI.
 pub fn spawn_python_telemetry_bridge(
+    python_ws_url: String,
     auth_token: String,
     mut stats_rx: UnboundedReceiver<SystemStats>,
     mut cmd_rx: UnboundedReceiver<String>,
@@ -47,7 +47,7 @@ pub fn spawn_python_telemetry_bridge(
 ) {
     tokio::spawn(async move {
         loop {
-            let request = match build_ws_request(&auth_token) {
+            let request = match build_ws_request(&python_ws_url, &auth_token) {
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("[rocky-python-ws] build request failed: {e}");
@@ -58,7 +58,7 @@ pub fn spawn_python_telemetry_bridge(
 
             match connect_async(request).await {
                 Ok((ws, _response)) => {
-                    eprintln!("[rocky-python-ws] connected to {PYTHON_WS_URL}");
+                    eprintln!("[rocky-python-ws] connected to {python_ws_url}");
 
                     // Descartar la telemetría acumulada mientras estuvimos
                     // desconectados: enviarla en ráfaga haría que el analyzer

@@ -6,6 +6,7 @@ mod python_bridge;
 mod telemetry;
 
 use std::env;
+use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
@@ -34,10 +35,18 @@ fn request_listen(control: State<'_, PythonBridgeControl>) -> Result<(), String>
 #[tauri::command]
 fn send_chat(text: String, control: State<'_, PythonBridgeControl>) -> Result<(), String> {
     let payload = serde_json::json!({ "action": "chat", "text": text });
-    control.0.send(payload.to_string()).map_err(|e| e.to_string())
+    control
+        .0
+        .send(payload.to_string())
+        .map_err(|e| e.to_string())
 }
 
-fn spawn_rocky_engine(token: String) -> std::io::Result<Child> {
+fn reserve_local_port() -> std::io::Result<u16> {
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    Ok(listener.local_addr()?.port())
+}
+
+fn spawn_rocky_engine(token: String, port: u16) -> std::io::Result<Child> {
     // Base fiable en runtime: carpeta `rocky-ui/src-tauri`
     // Desde ahí, el motor vive en `../../rocky-engine/`.
     let engine_dir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../rocky-engine");
@@ -52,7 +61,7 @@ fn spawn_rocky_engine(token: String) -> std::io::Result<Child> {
         .arg("--host")
         .arg("127.0.0.1")
         .arg("--port")
-        .arg("8000")
+        .arg(port.to_string())
         // Logs: que fluyan a la terminal principal.
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -70,6 +79,9 @@ async fn main() {
     env::set_var("ROCKY_AUTH_TOKEN", &token);
 
     let auth_for_python = env::var("ROCKY_AUTH_TOKEN").expect("ROCKY_AUTH_TOKEN set at startup");
+    let engine_port = reserve_local_port().expect("failed to reserve local rocky-engine port");
+    let python_ws_url = format!("ws://127.0.0.1:{engine_port}/ws");
+    println!("[rocky-engine] puerto local asignado: {engine_port}");
 
     let app = tauri::Builder::default()
         .manage(RockyEngineProcess::default())
@@ -95,10 +107,12 @@ async fn main() {
             // Orquestación: lanzar motor de Python (uvicorn) al iniciar.
             {
                 let engine_state = app.state::<RockyEngineProcess>();
-                match spawn_rocky_engine(token.clone()) {
+                match spawn_rocky_engine(token.clone(), engine_port) {
                     Ok(child) => {
                         *engine_state.0.lock().expect("engine mutex poisoned") = Some(child);
-                        println!("[Orchestrator] Motor de Python lanzado con éxito.");
+                        println!(
+                            "[Orchestrator] Motor de Python lanzado en 127.0.0.1:{engine_port}."
+                        );
                     }
                     Err(err) => {
                         eprintln!("[Orchestrator] Falló al lanzar el motor de Python: {err}");
@@ -116,10 +130,8 @@ async fn main() {
                 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
                 let primary = Shortcut::new(Some(Modifiers::SUPER), Code::Space);
-                let fallback = Shortcut::new(
-                    Some(Modifiers::CONTROL | Modifiers::ALT),
-                    Code::Space,
-                );
+                let fallback =
+                    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space);
                 match app.global_shortcut().register(primary) {
                     Ok(()) => println!("[rocky-hotkey] Super+Espacio registrado"),
                     Err(primary_err) => match app.global_shortcut().register(fallback) {
@@ -134,6 +146,7 @@ async fn main() {
                 }
             }
             python_bridge::spawn_python_telemetry_bridge(
+                python_ws_url.clone(),
                 auth_for_python,
                 stats_rx,
                 cmd_rx,

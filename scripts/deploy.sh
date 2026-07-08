@@ -14,4 +14,4 @@ else
   echo "cargo no encontrado; omite build de Rust" >&2
 fi
 
-echo "Listo: venv en rocky-engine/.venv y (si hay cargo) build en rocky-ui/src-tauri/target/release"
+echo "Listo: venv en rocky-engine/venv y (si hay cargo) build en rocky-ui/src-tauri/target/release"

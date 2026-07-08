@@ -3,8 +3,8 @@
 Rocky es un asistente personal nativo para Linux, diseñado bajo el principio de
 **Cero-VRAM local**: la inferencia (Llama 3.3 y Whisper vía Groq) y la síntesis
 de voz (edge-tts) ocurren fuera de la máquina, dejando CPU/GPU/RAM libres para
-cargas de trabajo pesadas. Localmente solo corre un daemon ligero que orquesta
-telemetría, voz y (a futuro) herramientas de terceros.
+cargas de trabajo pesadas. Localmente corre un daemon ligero que orquesta
+telemetría, voz y herramientas deterministas de terceros.
 
 > La visión completa y el cronograma original están en
 > [`docs/BLUEPRINT.md`](docs/BLUEPRINT.md). Este README describe **lo que existe
@@ -65,7 +65,7 @@ Tres procesos, un solo dueño de cada responsabilidad:
 │  · Lee CPU/RAM cada 1 s (sysinfo)                                │
 │  · Puente WebSocket ↔ Python con reconexión cada 5 s             │
 └──────────┬───────────────────────────────┬───────────────────────┘
-   eventos Tauri                   WebSocket ws://127.0.0.1:8000/ws
+   eventos Tauri                   WebSocket local dinámico
  (system-stats, system-alert,      (telemetría JSON + comandos +
   rocky-chat, voice-state)          eventos tipados de vuelta)
            │                               │
@@ -87,10 +87,10 @@ Tres procesos, un solo dueño de cada responsabilidad:
 2. **Logs JSON con stdlib, sin structlog.** `infrastructure/logger.py`
    implementa un `JsonFormatter` propio: mismo resultado (una línea JSON por
    evento, nivel vía `ROCKY_LOG_LEVEL`) sin una dependencia más.
-3. **Voz por botón de UI, no atajo global (aún).** El atajo global
-   (Super+Espacio) requiere integración con el compositor (X11/Wayland
-   adapters); queda en el roadmap. El disparador actual es el botón *Hablar*,
-   que viaja UI → Rust (`request_listen`) → Python (`{"action":"listen"}`).
+3. **Voz por botón de UI y atajo global.** El disparador de voz viaja UI/Rust
+   (`request_listen`) → Python (`{"action":"listen"}`). Además,
+   `tauri-plugin-global-shortcut` registra Super+Espacio, con fallback a
+   Ctrl+Alt+Espacio si el compositor ya ocupa el atajo.
 4. **SpeechRecognition + PyAudio para captura.** Más simple que
    `sounddevice`+numpy para la fase actual (detección de silencio incluida).
    El audio se graba a un temporal y se borra inmediatamente tras transcribir.
@@ -133,7 +133,7 @@ rocky/
 │   │   ├── infrastructure/  # audio/ (STT, TTS) · clients/ (Groq) · logger.py
 │   │   ├── orchestrator.py  # enrutamiento de mensajes y pipeline de voz
 │   │   └── main.py          # entry point + inyección de dependencias
-│   └── tests/               # unit/ e integration/ (pytest, 21 tests)
+│   └── tests/               # unit/ e integration/ (pytest, 46 tests)
 ├── rocky-ui/                # Frontend (Tauri 2 + Next.js 16 + Tailwind 4)
 │   ├── src-tauri/src/       # main.rs · telemetry.rs · python_bridge.rs · auth_token.rs
 │   └── src/                 # app/ · components/ · hooks/useRocky.ts
@@ -164,7 +164,8 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
 2. **Secretos**: copia `.env.example` a `rocky-engine/.env` y pon tu
    `GROQ_API_KEY`. (Sin ella, Rocky funciona con respuestas de fallback.)
 
-3. **App completa** (Tauri lanza Next.js y el engine automáticamente):
+3. **App completa** (Tauri lanza Next.js y el engine automáticamente en un
+   puerto local libre):
 
    ```bash
    cd rocky-ui

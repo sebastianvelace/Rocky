@@ -19,6 +19,7 @@ def create_ws_router(security: RockySecurity, orchestrator: RockyOrchestrator) -
     @router.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:
         if not await security.validate_websocket(websocket):
+            await websocket.accept()
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 

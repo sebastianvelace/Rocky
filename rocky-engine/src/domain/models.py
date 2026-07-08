@@ -7,6 +7,27 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+class ProcessTelemetry(BaseModel):
+    """Proceso observado por Rust/sysinfo en los rankings de consumo."""
+
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    pid: str
+    name: str
+    cpu: float
+    ram: float
+    memory_mb: float
+
+    @field_validator("cpu", "ram", "memory_mb", mode="before")
+    @classmethod
+    def coerce_json_number_to_float(cls, v: Any) -> float:
+        if isinstance(v, bool):
+            raise ValueError("boolean is not a valid numeric process value")
+        if isinstance(v, int | float):
+            return float(v)
+        raise ValueError("expected int or float")
+
+
 class SystemTelemetry(BaseModel):
     """Contrato del JSON de telemetría enviado por Rust (`{cpu, ram}`)."""
 
@@ -14,6 +35,8 @@ class SystemTelemetry(BaseModel):
 
     cpu: float
     ram: float
+    top_cpu: list[ProcessTelemetry] = Field(default_factory=list)
+    top_ram: list[ProcessTelemetry] = Field(default_factory=list)
 
     @field_validator("cpu", "ram", mode="before")
     @classmethod

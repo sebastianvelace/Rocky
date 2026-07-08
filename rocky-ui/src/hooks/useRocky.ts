@@ -18,7 +18,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export const HISTORY_LENGTH = 60;
 
-export type SystemStats = { cpu: number; ram: number };
+export type ProcessStats = {
+  pid: string;
+  name: string;
+  cpu: number;
+  ram: number;
+  memory_mb: number;
+};
+
+export type SystemStats = {
+  cpu: number;
+  ram: number;
+  top_cpu?: ProcessStats[];
+  top_ram?: ProcessStats[];
+};
 
 export type SystemAlert = {
   level?: string;
@@ -54,6 +67,33 @@ const DEMO_REPLIES = [
   "Todo nominal por aquí. Bueno, todo simulado, pero nominal.",
 ];
 
+const DEMO_PROCESSES = [
+  { pid: "2142", name: "next-dev", cpu: 18, ram: 4.2, memory_mb: 520 },
+  { pid: "2198", name: "rust-analyzer", cpu: 11, ram: 3.6, memory_mb: 450 },
+  { pid: "2050", name: "code", cpu: 7, ram: 8.1, memory_mb: 990 },
+  { pid: "2281", name: "uvicorn", cpu: 4, ram: 1.5, memory_mb: 180 },
+  { pid: "1888", name: "firefox", cpu: 3, ram: 11.2, memory_mb: 1360 },
+];
+
+function demoProcesses(cpu: number, ram: number): Pick<SystemStats, "top_cpu" | "top_ram"> {
+  const topCpu = DEMO_PROCESSES.map((process, index) => ({
+    ...process,
+    cpu: Math.max(0, process.cpu + (Math.random() - 0.5) * (index === 0 ? 8 : 3)),
+    ram: Math.max(0.1, process.ram + (Math.random() - 0.5) * 0.8),
+  }))
+    .sort((a, b) => b.cpu - a.cpu)
+    .slice(0, 5);
+  const topRam = DEMO_PROCESSES.map((process) => ({
+    ...process,
+    memory_mb: Math.max(30, process.memory_mb + (Math.random() - 0.5) * 80),
+    ram: Math.max(0.1, process.ram + (ram / 100) * 0.6),
+    cpu: Math.max(0, process.cpu + (cpu / 100) * 1.5),
+  }))
+    .sort((a, b) => b.memory_mb - a.memory_mb)
+    .slice(0, 5);
+  return { top_cpu: topCpu, top_ram: topRam };
+}
+
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -81,7 +121,7 @@ export function useRocky() {
       const tick = () => {
         cpu = Math.min(98, Math.max(2, cpu + (Math.random() - 0.5) * 14));
         ram = Math.min(98, Math.max(10, ram + (Math.random() - 0.5) * 4));
-        const payload = { cpu, ram };
+        const payload = { cpu, ram, ...demoProcesses(cpu, ram) };
         setStats(payload);
         setCpuHistory((prev) => [...prev, payload.cpu].slice(-HISTORY_LENGTH));
         setRamHistory((prev) => [...prev, payload.ram].slice(-HISTORY_LENGTH));

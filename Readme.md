@@ -47,6 +47,9 @@ Funciona de punta a punta:
 - ✅ **Memoria y contexto real** — Rocky recuerda los últimos turnos de la
   sesión y recibe la telemetría actual: "¿cómo va el sistema?" se responde
   con los números reales.
+- ✅ **Procesos top** — Rust envía rankings de procesos por CPU/RAM; la UI los
+  muestra en vivo y Rocky puede responder "qué está consumiendo memoria" con
+  la herramienta determinista `system.top`.
 - ✅ **Avatar animado** — Rocky respira y parpadea en reposo, emite anillos
   de sonar al escuchar, gira un anillo al pensar, mueve una boca ecualizador
   al hablar y se sacude en rojo ante una alerta. Todo SVG + CSS (respeta
@@ -113,13 +116,14 @@ tipados en TypeScript (`src/hooks/useRocky.ts`).
 | Dirección | Mensaje WS | Evento Tauri | Contenido |
 |---|---|---|---|
 | Rust → Python | `{cpu, ram}` | — | telemetría cada 1 s |
+| Rust → Python | `{top_cpu, top_ram}` | — | rankings opcionales de procesos |
 | Rust → Python | `{"action":"listen"}` | — | iniciar pipeline de voz |
 | Rust → Python | `{"action":"chat","text"}` | — | mensaje escrito por el usuario |
 | Python → Rust | `TelemetryAck` | — (no llega a UI) | `{status, cpu_received}` |
 | Python → Rust | `AlertEvent` | `system-alert` | `{type:"alert", level, resource, message}` |
 | Python → Rust | `ChatEvent` | `rocky-chat` | `{type:"chat", role, text, partial}` — `partial:true` = delta de streaming; el evento final trae el texto completo |
 | Python → Rust | `VoiceStateEvent` | `voice-state` | `{type:"voice", state, detail?}` |
-| Rust → UI | — | `system-stats` | `{cpu, ram}` |
+| Rust → UI | — | `system-stats` | `{cpu, ram, top_cpu?, top_ram?}` |
 
 ## Estructura del repositorio
 

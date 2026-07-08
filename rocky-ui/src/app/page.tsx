@@ -2,6 +2,7 @@
 
 import { Cpu, MemoryStick } from "lucide-react";
 import { AlertBanner } from "../components/AlertBanner";
+import { ProcessRank } from "../components/ProcessRank";
 import { StatGauge } from "../components/StatGauge";
 import { VoiceConsole } from "../components/VoiceConsole";
 import { useRocky } from "../hooks/useRocky";
@@ -72,6 +73,8 @@ export default function Page() {
           threshold={RAM_THRESHOLD}
         />
       </div>
+
+      <ProcessRank topCpu={stats.top_cpu} topRam={stats.top_ram} />
 
       <VoiceConsole
         chat={chat}

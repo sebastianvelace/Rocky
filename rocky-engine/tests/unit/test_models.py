@@ -1,7 +1,13 @@
 import pytest
 from pydantic import ValidationError
 
-from src.domain.models import AlertEvent, ChatEvent, SystemTelemetry, VoiceStateEvent
+from src.domain.models import (
+    AlertEvent,
+    ChatEvent,
+    ProcessTelemetry,
+    SystemTelemetry,
+    VoiceStateEvent,
+)
 
 
 class TestSystemTelemetry:
@@ -15,6 +21,29 @@ class TestSystemTelemetry:
         t = SystemTelemetry.model_validate({"cpu": 12, "ram": 40})
         assert t.cpu == 12.0
         assert isinstance(t.cpu, float)
+
+    def test_accepts_process_rankings(self) -> None:
+        t = SystemTelemetry.model_validate(
+            {
+                "cpu": 12,
+                "ram": 40,
+                "top_cpu": [
+                    {
+                        "pid": "123",
+                        "name": "python",
+                        "cpu": 8,
+                        "ram": 2,
+                        "memory_mb": 256,
+                    }
+                ],
+                "top_ram": [],
+            }
+        )
+        assert t.top_cpu == [
+            ProcessTelemetry(
+                pid="123", name="python", cpu=8.0, ram=2.0, memory_mb=256.0
+            )
+        ]
 
     def test_rejects_booleans(self) -> None:
         with pytest.raises(ValidationError):

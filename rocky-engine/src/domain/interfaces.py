@@ -5,6 +5,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
+from src.domain.models import SystemTelemetry
+
 
 class BaseTool(ABC):
     """Herramienta determinista ejecutable por el ToolDispatcher.
@@ -19,6 +21,6 @@ class BaseTool(ABC):
 
     @abstractmethod
     async def run(
-        self, args: dict[str, Any], telemetry: tuple[float, float] | None
+        self, args: dict[str, Any], telemetry: SystemTelemetry | None
     ) -> str:
         """Ejecuta la herramienta y devuelve el texto de respuesta para el usuario."""

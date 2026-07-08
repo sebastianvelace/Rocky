@@ -29,26 +29,28 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
   para `rocky-engine`, evitando choques con otros procesos en `8000`.
 - **Checks locales actualizados** — `npm run lint` ejecuta `tsc --noEmit`
   porque `next lint` ya no aplica en Next 16.
+- **Top de procesos** — Rust envía rankings por CPU/RAM, la UI los muestra y
+  `system.top` responde qué está consumiendo recursos con datos reales.
 
 ## Corto plazo (siguiente iteración)
 
-### 1. Contexto del sistema para el LLM
-Top de procesos por CPU/RAM (sysinfo ya los conoce, Rust tendría que
-enviarlos) para que "¿qué está comiendo la RAM?" tenga respuesta real, y
-quizá una herramienta `system.top` determinista.
-
-### 2. Más telemetría
+### 1. Más telemetría
 Temperaturas, GPU (nvml), disco y red. El contrato `SystemTelemetry` crece con
 campos opcionales para no romper la UI vieja; la UI gana una fila de tarjetas
 secundarias.
 
-### 3. Configuración desde la UI
+### 2. Configuración desde la UI
 Voz TTS, umbrales de alerta, cooldown y credenciales opcionales deberían ser
 visibles/configurables sin editar archivos manualmente.
 
-### 4. Verificación visual automatizada
+### 3. Verificación visual automatizada
 Agregar una prueba de humo con Playwright para `npm run dev` que valide que la
 UI demo renderiza telemetría, consola y avatar sin solapamientos obvios.
+
+### 4. Acciones seguras sobre procesos
+Después de mostrar procesos top, el siguiente paso natural es permitir acciones
+con confirmación explícita: copiar PID, sugerir cierre o matar proceso solo si
+el usuario confirma.
 
 ## Largo plazo / ideas
 

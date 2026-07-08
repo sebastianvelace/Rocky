@@ -12,6 +12,8 @@
   `x-rocky-auth-token` y responde a telemetría con `TelemetryAck`.
 - UI demo: `npm run dev` sirve la página correctamente. Si `3000` está ocupado,
   Next usa el siguiente puerto libre, por ejemplo `3002`.
+- Telemetría avanzada: CPU/RAM globales más `top_cpu` y `top_ram` con procesos
+  principales por consumo; visible en UI y disponible vía `system.top`.
 
 ## Correcciones Aplicadas
 
@@ -56,7 +58,6 @@ Secretos opcionales:
 ## Pendientes Reales
 
 - Verificación visual automatizada de la UI demo/app.
-- Herramienta `system.top` con procesos por CPU/RAM.
 - Telemetría extendida: GPU, temperatura, disco y red.
 - Configuración editable desde la UI.
 - Wake word y modo tray.

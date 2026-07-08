@@ -10,6 +10,7 @@ import asyncio
 from typing import Any
 
 from src.domain.interfaces import BaseTool
+from src.domain.models import SystemTelemetry
 from src.infrastructure.clients.spotify_client import SpotifyClient
 
 
@@ -25,7 +26,7 @@ class SpotifyPlayTool(BaseTool):
         self._client = client
 
     async def run(
-        self, args: dict[str, Any], telemetry: tuple[float, float] | None
+        self, args: dict[str, Any], telemetry: SystemTelemetry | None
     ) -> str:
         query = str(args.get("query") or "").strip() or None
         return await asyncio.to_thread(self._client.play, query)
@@ -39,7 +40,7 @@ class SpotifyPauseTool(BaseTool):
         self._client = client
 
     async def run(
-        self, args: dict[str, Any], telemetry: tuple[float, float] | None
+        self, args: dict[str, Any], telemetry: SystemTelemetry | None
     ) -> str:
         return await asyncio.to_thread(self._client.pause)
 
@@ -55,6 +56,6 @@ class SpotifyNextTool(BaseTool):
         self._client = client
 
     async def run(
-        self, args: dict[str, Any], telemetry: tuple[float, float] | None
+        self, args: dict[str, Any], telemetry: SystemTelemetry | None
     ) -> str:
         return await asyncio.to_thread(self._client.next_track)

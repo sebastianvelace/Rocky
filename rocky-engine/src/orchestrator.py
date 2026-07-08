@@ -55,8 +55,9 @@ class RockyOrchestrator:
         )
         self._ai_cooldown_seconds = ai_cooldown_seconds
         self._last_ai_alert_time = 0.0
-        # Último (cpu, ram) conocido: se inyecta como contexto en el chat.
-        self._last_telemetry: tuple[float, float] | None = None
+        # Última telemetría validada: se usa en herramientas deterministas y
+        # como contexto compacto (cpu/ram) para el chat.
+        self._last_telemetry: SystemTelemetry | None = None
         # Un solo pipeline interactivo (voz o chat) a la vez.
         self._active_task: asyncio.Task[None] | None = None
         # Starlette no garantiza envíos concurrentes seguros sobre el mismo
@@ -99,7 +100,7 @@ class RockyOrchestrator:
         self._logger.debug(
             "[DATA] Telemetría validada: CPU=%s%% RAM=%s%%", model.cpu, model.ram
         )
-        self._last_telemetry = (model.cpu, model.ram)
+        self._last_telemetry = model
         await self._send(websocket, TelemetryAck(status="ok", cpu_received=model.cpu))
 
         alert = self._analyzer.analyze(model)
@@ -163,7 +164,7 @@ class RockyOrchestrator:
         def producer() -> None:
             try:
                 for delta in self._groq.stream_conversational_reply(
-                    text, self._last_telemetry
+                    text, self._telemetry_context()
                 ):
                     loop.call_soon_threadsafe(queue.put_nowait, delta)
             finally:
@@ -184,6 +185,11 @@ class RockyOrchestrator:
         # Evento final: texto completo, cierra el mensaje en la UI.
         await self._send(websocket, ChatEvent(role="rocky", text=full))
         return full
+
+    def _telemetry_context(self) -> tuple[float, float] | None:
+        if self._last_telemetry is None:
+            return None
+        return (self._last_telemetry.cpu, self._last_telemetry.ram)
 
     async def _chat_pipeline(self, websocket: WebSocket, text: str) -> None:
         """Chat por texto: eco del usuario → LLM (streaming) → respuesta.

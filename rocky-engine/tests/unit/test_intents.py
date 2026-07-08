@@ -4,8 +4,8 @@ import pytest
 
 from src.core.intent_parser import IntentParser
 from src.core.tool_dispatcher import ToolDispatcher
-from src.core.tools.system import SystemStatusTool
-from src.domain.models import Intent
+from src.core.tools.system import SystemStatusTool, SystemTopTool
+from src.domain.models import Intent, SystemTelemetry
 from src.infrastructure.clients.groq_client import GroqClient
 
 
@@ -45,7 +45,8 @@ class TestToolDispatcher:
     @pytest.mark.asyncio
     async def test_chat_intent_returns_none(self) -> None:
         dispatcher = ToolDispatcher()
-        assert await dispatcher.dispatch(Intent(tool="chat"), (10.0, 20.0)) is None
+        telemetry = SystemTelemetry(cpu=10.0, ram=20.0)
+        assert await dispatcher.dispatch(Intent(tool="chat"), telemetry) is None
 
     @pytest.mark.asyncio
     async def test_unknown_tool_returns_none(self) -> None:
@@ -55,7 +56,9 @@ class TestToolDispatcher:
     @pytest.mark.asyncio
     async def test_system_status_uses_real_telemetry(self) -> None:
         dispatcher = ToolDispatcher()
-        result = await dispatcher.dispatch(Intent(tool="system.status"), (42.0, 61.0))
+        result = await dispatcher.dispatch(
+            Intent(tool="system.status"), SystemTelemetry(cpu=42.0, ram=61.0)
+        )
         assert result is not None
         assert "42" in result
         assert "61" in result
@@ -65,7 +68,40 @@ class TestToolDispatcher:
         result = await SystemStatusTool().run({}, None)
         assert "telemetría" in result.lower()
 
+    @pytest.mark.asyncio
+    async def test_system_top_lists_process_rankings(self) -> None:
+        telemetry = SystemTelemetry.model_validate(
+            {
+                "cpu": 42.0,
+                "ram": 61.0,
+                "top_cpu": [
+                    {
+                        "pid": "123",
+                        "name": "cargo",
+                        "cpu": 36.5,
+                        "ram": 1.1,
+                        "memory_mb": 90,
+                    }
+                ],
+                "top_ram": [
+                    {
+                        "pid": "456",
+                        "name": "firefox",
+                        "cpu": 5.0,
+                        "ram": 12.2,
+                        "memory_mb": 1400,
+                    }
+                ],
+            }
+        )
+        result = await SystemTopTool().run({}, telemetry)
+        assert "Top CPU" in result
+        assert "cargo" in result
+        assert "Top RAM" in result
+        assert "firefox" in result
+
     def test_tools_prompt_lists_tools_and_chat(self) -> None:
         prompt = ToolDispatcher().tools_prompt
         assert "system.status" in prompt
+        assert "system.top" in prompt
         assert "chat" in prompt

@@ -288,4 +288,6 @@ class TestChatFlow:
         async with ws_session(app, AUTH_HEADERS) as ws:
             await ws.send_json({"cpu": 42.0, "ram": 33.0})
             await ws.receive_json()  # ack
-        assert orchestrator._last_telemetry == (42.0, 33.0)
+        assert orchestrator._last_telemetry is not None
+        assert orchestrator._last_telemetry.cpu == 42.0
+        assert orchestrator._last_telemetry.ram == 33.0

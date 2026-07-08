@@ -55,8 +55,9 @@ class RockyOrchestrator:
         )
         self._ai_cooldown_seconds = ai_cooldown_seconds
         self._last_ai_alert_time = 0.0
-        # Último (cpu, ram) conocido: se inyecta como contexto en el chat.
-        self._last_telemetry: tuple[float, float] | None = None
+        # Último snapshot completo (cpu, ram, top de procesos): contexto para
+        # las herramientas y para el LLM.
+        self._last_telemetry: SystemTelemetry | None = None
         # Un solo pipeline interactivo (voz o chat) a la vez.
         self._active_task: asyncio.Task[None] | None = None
         # Starlette no garantiza envíos concurrentes seguros sobre el mismo
@@ -99,7 +100,7 @@ class RockyOrchestrator:
         self._logger.debug(
             "[DATA] Telemetría validada: CPU=%s%% RAM=%s%%", model.cpu, model.ram
         )
-        self._last_telemetry = (model.cpu, model.ram)
+        self._last_telemetry = model
         await self._send(websocket, TelemetryAck(status="ok", cpu_received=model.cpu))
 
         alert = self._analyzer.analyze(model)

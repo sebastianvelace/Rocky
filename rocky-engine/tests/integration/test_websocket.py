@@ -149,6 +149,17 @@ class TestChatFlow:
         app, orchestrator = build_app()
         client = TestClient(app)
         with client.websocket_connect("/ws", headers=AUTH_HEADERS) as ws:
-            ws.send_text(json.dumps({"cpu": 42.0, "ram": 33.0}))
+            ws.send_text(
+                json.dumps(
+                    {
+                        "cpu": 42.0,
+                        "ram": 33.0,
+                        "top": [{"name": "cargo", "cpu": 30, "mem_mb": 512}],
+                    }
+                )
+            )
             json.loads(ws.receive_text())  # ack
-        assert orchestrator._last_telemetry == (42.0, 33.0)
+        snapshot = orchestrator._last_telemetry
+        assert snapshot is not None
+        assert (snapshot.cpu, snapshot.ram) == (42.0, 33.0)
+        assert snapshot.top[0].name == "cargo"

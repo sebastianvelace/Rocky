@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
+
+if TYPE_CHECKING:
+    from src.domain.models import SystemTelemetry
 
 
 class BaseTool(ABC):
@@ -19,6 +22,10 @@ class BaseTool(ABC):
 
     @abstractmethod
     async def run(
-        self, args: dict[str, Any], telemetry: tuple[float, float] | None
+        self, args: dict[str, Any], telemetry: "SystemTelemetry | None"
     ) -> str:
-        """Ejecuta la herramienta y devuelve el texto de respuesta para el usuario."""
+        """Ejecuta la herramienta y devuelve el texto de respuesta para el usuario.
+
+        `telemetry` es el último snapshot completo (cpu, ram, top de
+        procesos) o None si aún no llegó ninguno.
+        """

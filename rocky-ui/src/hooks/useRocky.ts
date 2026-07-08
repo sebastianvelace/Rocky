@@ -18,7 +18,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export const HISTORY_LENGTH = 60;
 
-export type SystemStats = { cpu: number; ram: number };
+export type ProcessStat = { name: string; cpu: number; mem_mb: number };
+
+export type SystemStats = { cpu: number; ram: number; top?: ProcessStat[] };
 
 export type SystemAlert = {
   level?: string;
@@ -78,10 +80,24 @@ export function useRocky() {
       setDemoMode(true);
       let cpu = 35;
       let ram = 55;
+      const demoProcs = [
+        { name: "code", cpu: 18, mem_mb: 1600 },
+        { name: "chrome", cpu: 14, mem_mb: 2800 },
+        { name: "cargo", cpu: 11, mem_mb: 900 },
+        { name: "node", cpu: 6, mem_mb: 700 },
+        { name: "spotify", cpu: 3, mem_mb: 450 },
+        { name: "rocky-engine", cpu: 2, mem_mb: 180 },
+      ];
       const tick = () => {
         cpu = Math.min(98, Math.max(2, cpu + (Math.random() - 0.5) * 14));
         ram = Math.min(98, Math.max(10, ram + (Math.random() - 0.5) * 4));
-        const payload = { cpu, ram };
+        const top = demoProcs
+          .map((p) => ({
+            ...p,
+            cpu: Math.max(0.5, p.cpu + (Math.random() - 0.5) * 4),
+          }))
+          .sort((a, b) => b.cpu - a.cpu);
+        const payload = { cpu, ram, top };
         setStats(payload);
         setCpuHistory((prev) => [...prev, payload.cpu].slice(-HISTORY_LENGTH));
         setRamHistory((prev) => [...prev, payload.ram].slice(-HISTORY_LENGTH));

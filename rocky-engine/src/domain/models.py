@@ -122,6 +122,9 @@ class ModelOption(BaseModel):
     size_bytes: int | None = None
     parameter_size: str | None = None
     quantization: str | None = None
+    loaded: bool = False
+    memory_bytes: int | None = None
+    context_length: int | None = None
 
 
 class ModelStatusEvent(BaseModel):
@@ -133,4 +136,17 @@ class ModelStatusEvent(BaseModel):
     provider: Literal["ollama", "groq", "none"] = "none"
     active_model: str | None = None
     models: list[ModelOption] = Field(default_factory=list)
+    detail: str | None = None
+
+
+class ToolActivityEvent(BaseModel):
+    """Evento auditable de herramienta, sin exponer argumentos sensibles."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["tool-activity"] = "tool-activity"
+    tool: str
+    capability: str
+    status: Literal["completed", "denied", "failed"]
+    duration_ms: int = 0
     detail: str | None = None

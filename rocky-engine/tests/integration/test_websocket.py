@@ -12,7 +12,9 @@ from fastapi import FastAPI, status
 from starlette.websockets import WebSocketDisconnect
 from starlette.types import Message, Scope
 
-os.environ.setdefault("ROCKY_AUTH_TOKEN", "test-token-123")
+# Los imports de otras pruebas pueden cargar un `.env`; el contrato del
+# harness necesita siempre el secreto determinista de esta suite.
+os.environ["ROCKY_AUTH_TOKEN"] = "test-token-123"
 
 from src.api.middleware import RockySecurity
 from src.api.websocket import create_ws_router

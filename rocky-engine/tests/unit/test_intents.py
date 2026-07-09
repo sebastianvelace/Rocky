@@ -5,6 +5,7 @@ import pytest
 from src.core.intent_parser import IntentParser
 from src.core.tool_dispatcher import ToolDispatcher
 from src.core.tools.system import SystemDiagnoseTool, SystemStatusTool, SystemTopTool
+from src.domain.interfaces import BaseTool
 from src.domain.models import Intent, SystemTelemetry
 from src.infrastructure.clients.groq_client import GroqClient
 
@@ -128,6 +129,27 @@ class TestToolDispatcher:
         assert "system.top" in prompt
         assert "system.diagnose" in prompt
         assert "chat" in prompt
+
+    @pytest.mark.asyncio
+    async def test_denied_capability_never_runs_tool(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class ExternalTool(BaseTool):
+            name = "external.read"
+            capability = "calendar.read"
+            description = "external.read: test"
+            called = False
+
+            async def run(self, args, telemetry):  # type: ignore[no-untyped-def]
+                self.called = True
+                return "no debería ejecutarse"
+
+        monkeypatch.setenv("ROCKY_ALLOW_CALENDAR_READ", "false")
+        tool = ExternalTool()
+        dispatcher = ToolDispatcher([tool])
+        result = await dispatcher.dispatch(Intent(tool="external.read"), None)
+        assert result is not None and "desactivada" in result
+        assert tool.called is False
+        assert dispatcher.last_execution is not None
+        assert dispatcher.last_execution.status == "denied"
 
 
 class TestSystemTopTool:

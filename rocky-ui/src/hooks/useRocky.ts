@@ -64,6 +64,9 @@ export type LocalModel = {
   size_bytes?: number | null;
   parameter_size?: string | null;
   quantization?: string | null;
+  loaded?: boolean;
+  memory_bytes?: number | null;
+  context_length?: number | null;
 };
 
 export type ModelStatus = {
@@ -73,9 +76,19 @@ export type ModelStatus = {
   detail?: string | null;
 };
 
+export type ToolActivity = {
+  tool: string;
+  capability: string;
+  status: "completed" | "denied" | "failed";
+  duration_ms?: number;
+  detail?: string | null;
+  ts: number;
+};
+
 const ALERT_VISIBLE_MS = 8000;
 const VOICE_SAFETY_TIMEOUT_MS = 15000;
 const MAX_CHAT_MESSAGES = 200;
+const MAX_TOOL_ACTIVITY = 8;
 
 const DEMO_REPLIES = [
   "Modo demo, Sebas: sin engine no hay Llama, pero el teclado se siente bien, ¿no?",
@@ -134,6 +147,7 @@ export function useRocky() {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceDetail, setVoiceDetail] = useState<string | null>(null);
   const [modelStatus, setModelStatus] = useState<ModelStatus>({ provider: "none", models: [] });
+  const [toolActivity, setToolActivity] = useState<ToolActivity[]>([]);
 
   const alertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceSafetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -239,6 +253,10 @@ export function useRocky() {
         setModelStatus({ ...payload, models: payload.models ?? [] });
       });
 
+      await register<Omit<ToolActivity, "ts">>("tool-activity", (payload) => {
+        setToolActivity((previous) => [...previous, { ...payload, ts: Date.now() }].slice(-MAX_TOOL_ACTIVITY));
+      });
+
       const { invoke } = await import("@tauri-apps/api/core");
       try {
         await invoke("list_models");
@@ -342,6 +360,7 @@ export function useRocky() {
     voiceDetail,
     voiceBusy,
     modelStatus,
+    toolActivity,
     startListening,
     sendChat,
     refreshModels,

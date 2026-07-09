@@ -16,6 +16,7 @@ from src.infrastructure.clients.spotify_client import SpotifyClient
 
 class SpotifyPlayTool(BaseTool):
     name = "spotify.play"
+    capability = "spotify.control"
     description = (
         "spotify.play: el usuario pide reproducir música, poner una canción, "
         "artista o playlist, o reanudar la reproducción. args: {\"query\": "
@@ -34,6 +35,7 @@ class SpotifyPlayTool(BaseTool):
 
 class SpotifyPauseTool(BaseTool):
     name = "spotify.pause"
+    capability = "spotify.control"
     description = "spotify.pause: el usuario pide pausar o parar la música."
 
     def __init__(self, client: SpotifyClient) -> None:
@@ -47,6 +49,7 @@ class SpotifyPauseTool(BaseTool):
 
 class SpotifyNextTool(BaseTool):
     name = "spotify.next"
+    capability = "spotify.control"
     description = (
         "spotify.next: el usuario pide saltar a la siguiente canción o "
         "cambiar de tema."

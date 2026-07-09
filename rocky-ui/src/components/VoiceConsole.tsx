@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useRef, useState } from "react";
 import { CornerDownLeft, Mic } from "lucide-react";
-import type { ChatMessage, VoiceState } from "../hooks/useRocky";
+import type { ChatMessage, ToolActivity, VoiceState } from "../hooks/useRocky";
 import { RockyAvatar } from "./RockyAvatar";
 import { TypewriterText } from "./TypewriterText";
 
@@ -12,6 +12,7 @@ type Props = {
   voiceDetail: string | null;
   voiceBusy: boolean;
   alerting: boolean;
+  toolActivity: ToolActivity[];
   onListen: () => void;
   onSend: (text: string) => void;
 };
@@ -31,6 +32,7 @@ function VoiceConsoleBase({
   voiceDetail,
   voiceBusy,
   alerting,
+  toolActivity,
   onListen,
   onSend,
 }: Props) {
@@ -123,6 +125,16 @@ function VoiceConsoleBase({
           </div>
         ) : null}
       </div>
+
+      {toolActivity.length ? (
+        <aside className="border-t border-edge px-4 py-2 text-[11px] text-ink-muted" aria-label="Actividad reciente">
+          {toolActivity.slice(-2).map((activity) => (
+            <p key={`${activity.tool}-${activity.ts}`}>
+              {activity.tool} · {activity.status}{activity.duration_ms ? ` · ${activity.duration_ms} ms` : ""}{activity.detail ? ` · ${activity.detail}` : ""}
+            </p>
+          ))}
+        </aside>
+      ) : null}
 
       <footer className="flex items-center gap-2 border-t border-edge px-3 py-2.5">
         <button

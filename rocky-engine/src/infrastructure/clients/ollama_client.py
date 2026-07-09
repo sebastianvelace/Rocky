@@ -61,6 +61,17 @@ class OllamaClient:
             self._logger.info("Ollama no disponible: %s", exc)
             return []
 
+    def list_running_models(self) -> list[dict[str, Any]]:
+        """Consulta modelos cargados para revelar su coste de memoria real."""
+        try:
+            with urlopen(f"{self._base_url}/api/ps", timeout=self._timeout) as response:
+                payload = json.load(response)
+            models = payload.get("models", []) if isinstance(payload, dict) else []
+            return [model for model in models if isinstance(model, dict) and isinstance(model.get("name"), str)]
+        except Exception as exc:
+            self._logger.info("Estado de modelos Ollama no disponible: %s", exc)
+            return []
+
     def select_model(self, model: str) -> bool:
         selected = model.strip()
         if not selected:

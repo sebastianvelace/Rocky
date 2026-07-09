@@ -37,6 +37,7 @@ class ModelRouter:
 
     def status(self) -> dict[str, Any]:
         models = self._ollama.list_models()
+        running = {entry["name"]: entry for entry in self._ollama.list_running_models()}
         provider = self._provider
         detail: str | None = None
         if provider == "ollama" and not models:
@@ -56,6 +57,9 @@ class ModelRouter:
                     "size_bytes": entry.get("size"),
                     "parameter_size": entry.get("details", {}).get("parameter_size") if isinstance(entry.get("details"), dict) else None,
                     "quantization": entry.get("details", {}).get("quantization_level") if isinstance(entry.get("details"), dict) else None,
+                    "loaded": entry["name"] in running,
+                    "memory_bytes": running.get(entry["name"], {}).get("size_vram") or running.get(entry["name"], {}).get("size"),
+                    "context_length": running.get(entry["name"], {}).get("context_length"),
                 }
                 for entry in models
             ],

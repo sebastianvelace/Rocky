@@ -29,6 +29,9 @@
   límites de resultados/archivos y sin capacidad de ejecutar comandos.
 - Memoria: los canales de telemetría/comandos tienen retención acotada;
   streaming, historial SQLite y chat visual también tienen límites explícitos.
+- Readiness: el engine expone `GET /health` y el bridge Rust espera esta señal
+  antes de iniciar el WebSocket normal. La UI muestra actividad de herramientas
+  sin registrar sus argumentos.
 
 ## Correcciones Aplicadas
 

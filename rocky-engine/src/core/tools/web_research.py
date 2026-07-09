@@ -14,9 +14,11 @@ from src.domain.models import SystemTelemetry
 
 class WebResearchTool(BaseTool):
     name = "web.search"
+    capability = "web.research"
     description = "web.search: investiga información actual en Internet, busca fuentes web o noticias. args: {query}."
 
     async def run(self, args: dict[str, Any], telemetry: SystemTelemetry | None) -> str:
+        # Defensa en profundidad para llamadas directas fuera del dispatcher.
         if os.getenv("ROCKY_WEB_ENABLED", "true").strip().lower() not in {"1", "true", "yes"}:
             return "La investigación web está desactivada por configuración."
         query = str(args.get("query", "")).strip()

@@ -40,6 +40,12 @@ configure_logging()
 
 app = FastAPI(title="Rocky Engine")
 
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Readiness local: no incluye secretos ni detalles del sistema."""
+    return {"status": "ok"}
+
 spotify = SpotifyClient()
 gcalendar = GCalendarClient()
 dispatcher = ToolDispatcher(

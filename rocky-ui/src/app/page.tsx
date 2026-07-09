@@ -26,6 +26,7 @@ export default function Page() {
     voiceDetail,
     voiceBusy,
     modelStatus,
+    toolActivity,
     startListening,
     sendChat,
     refreshModels,
@@ -84,7 +85,7 @@ export default function Page() {
       <div className="mt-8"><ProcessRank topCpu={stats.top_cpu} topRam={stats.top_ram} /></div>
 
       <div className="mt-8 min-h-[360px] flex-1">
-        <VoiceConsole chat={chat} voiceState={voiceState} voiceDetail={voiceDetail} voiceBusy={voiceBusy} alerting={Boolean(alert)} onListen={startListening} onSend={sendChat} />
+        <VoiceConsole chat={chat} voiceState={voiceState} voiceDetail={voiceDetail} voiceBusy={voiceBusy} alerting={Boolean(alert)} toolActivity={toolActivity} onListen={startListening} onSend={sendChat} />
       </div>
     </main>
   );

@@ -59,8 +59,7 @@ pub fn collect_stats(system: &mut System, protected_pids: &[u32]) -> SystemStats
             }
             .clamp(0.0, 100.0);
             let name = process.name().to_string_lossy().into_owned();
-            let protection_reason =
-                classify_process_protection(raw_pid, &name, protected_pids);
+            let protection_reason = classify_process_protection(raw_pid, &name, protected_pids);
 
             ProcessStats {
                 pid: raw_pid.to_string(),
@@ -90,11 +89,7 @@ pub fn collect_stats(system: &mut System, protected_pids: &[u32]) -> SystemStats
     }
 }
 
-pub fn classify_process_protection(
-    pid: u32,
-    name: &str,
-    protected_pids: &[u32],
-) -> Option<String> {
+pub fn classify_process_protection(pid: u32, name: &str, protected_pids: &[u32]) -> Option<String> {
     if pid <= 1 {
         return Some("proceso crítico del sistema".to_string());
     }

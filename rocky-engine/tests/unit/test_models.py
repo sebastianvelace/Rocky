@@ -5,6 +5,7 @@ from src.domain.models import (
     AlertEvent,
     ChatEvent,
     ModelStatusEvent,
+    ToolActivityEvent,
     ProcessTelemetry,
     SystemTelemetry,
     VoiceStateEvent,
@@ -138,3 +139,19 @@ class TestOutboundEvents:
         )
         assert event.type == "model-status"
         assert event.models[0].id == "qwen3:8b"
+
+    def test_tool_activity_never_contains_arguments(self) -> None:
+        event = ToolActivityEvent(
+            tool="web.search",
+            capability="web.research",
+            status="completed",
+            duration_ms=12,
+        )
+        assert event.model_dump() == {
+            "type": "tool-activity",
+            "tool": "web.search",
+            "capability": "web.research",
+            "status": "completed",
+            "duration_ms": 12,
+            "detail": None,
+        }

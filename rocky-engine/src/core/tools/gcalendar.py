@@ -12,6 +12,7 @@ from src.infrastructure.clients.gcalendar_client import NOT_CONFIGURED, GCalenda
 
 class CalendarTodayTool(BaseTool):
     name = "calendar.today"
+    capability = "calendar.read"
     description = (
         "calendar.today: el usuario pregunta qué tiene hoy en la agenda, "
         "sus eventos, reuniones o calendario del día."

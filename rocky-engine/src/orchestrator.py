@@ -25,6 +25,7 @@ from src.domain.models import (
     ModelStatusEvent,
     SystemTelemetry,
     TelemetryAck,
+    ToolActivityEvent,
     VoiceStateEvent,
 )
 from src.infrastructure.audio.stt_manager import STTManager
@@ -186,6 +187,18 @@ class RockyOrchestrator:
         intent = await asyncio.to_thread(self._parser.parse, text)
         tool_result = await self._dispatcher.dispatch(intent, self._last_telemetry)
         if tool_result is not None:
+            execution = self._dispatcher.last_execution
+            if execution is not None:
+                await self._send(
+                    websocket,
+                    ToolActivityEvent(
+                        tool=execution.tool,
+                        capability=execution.capability,
+                        status=execution.status,  # type: ignore[arg-type]
+                        duration_ms=execution.duration_ms,
+                        detail=execution.detail,
+                    ),
+                )
             await self._send(websocket, ChatEvent(role="rocky", text=tool_result))
             return tool_result
         return await self._stream_reply(websocket, text)

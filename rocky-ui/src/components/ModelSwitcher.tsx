@@ -11,7 +11,7 @@ type Props = {
 };
 
 function modelLabel(model: ModelStatus["models"][number]) {
-  const details = [model.parameter_size, model.quantization].filter(Boolean).join(" · ");
+  const details = [model.parameter_size, model.quantization, model.loaded ? "RAM" : null].filter(Boolean).join(" · ");
   return details ? `${model.id} (${details})` : model.id;
 }
 

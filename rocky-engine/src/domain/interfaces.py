@@ -18,6 +18,9 @@ class BaseTool(ABC):
 
     name: ClassVar[str]
     description: ClassVar[str]
+    # La política se aplica antes de llamar a `run`, aunque una intención sea
+    # fabricada por un modelo o por un cliente comprometido.
+    capability: ClassVar[str] = "system.read"
 
     @abstractmethod
     async def run(

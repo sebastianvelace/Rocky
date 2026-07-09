@@ -55,6 +55,9 @@ Funciona de punta a punta:
 - ✅ **Memoria acotada** — telemetría retenida como último snapshot, cola de
   comandos finita, streaming con backpressure, 200 mensajes en pantalla y
   retención de 1.000 turnos en SQLite.
+- ✅ **Readiness y trazabilidad** — Tauri espera `GET /health` antes de abrir
+  el puente normal; cada herramienta emite su capacidad, resultado y duración
+  hacia la UI sin incluir argumentos potencialmente sensibles.
 - ✅ **Resiliencia** — Groq reintenta fallos transitorios con backoff
   exponencial (Tenacity); errores de autenticación se detectan como
   configuración inválida, no se reintentan y degradan a fallback.
@@ -240,5 +243,8 @@ python -m pytest
 - Las herramientas de investigación son solo de lectura y están limitadas en
   número/tamaño de archivos y resultados. El modelo no recibe capacidad de
   ejecutar comandos, alterar procesos ni navegar a hosts arbitrarios.
+- La política por capacidad permite desactivar `workspace.read`,
+  `web.research`, `calendar.read` y `spotify.control` mediante las variables
+  `ROCKY_ALLOW_*`; la decisión se aplica en el dispatcher, no en el modelo.
 - El audio del micrófono se transcribe desde un archivo temporal que se borra
   de inmediato; nada persiste en disco.

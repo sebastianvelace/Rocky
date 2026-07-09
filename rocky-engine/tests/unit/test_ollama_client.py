@@ -24,3 +24,15 @@ def test_list_and_select_installed_ollama_model(monkeypatch) -> None:
     assert client.select_model("qwen3:8b") is True
     assert client.active_model == "qwen3:8b"
     assert client.select_model("not-installed") is False
+
+
+def test_lists_models_loaded_in_memory(monkeypatch) -> None:
+    def fake_urlopen(request, **_kwargs):
+        url = request if isinstance(request, str) else request.full_url
+        payload = {"models": [{"name": "qwen3:8b", "size_vram": 3_000_000_000, "context_length": 8192}]}
+        assert url.endswith("/api/ps")
+        return FakeResponse(json.dumps(payload).encode())
+
+    monkeypatch.setattr("src.infrastructure.clients.ollama_client.urlopen", fake_urlopen)
+    running = OllamaClient().list_running_models()
+    assert running[0]["context_length"] == 8192

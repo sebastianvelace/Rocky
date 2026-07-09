@@ -12,6 +12,7 @@ from src.domain.models import SystemTelemetry
 
 class LocalWorkspaceSearchTool(BaseTool):
     name = "workspace.search"
+    capability = "workspace.read"
     description = "workspace.search: busca texto o archivos en el workspace local del usuario, repositorio o código local. args: {query}."
     _EXCLUDED = {".git", ".next", "node_modules", "venv", "__pycache__", ".pytest_cache"}
     _MAX_FILES = 6

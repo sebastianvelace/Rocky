@@ -5,6 +5,8 @@ use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 use tokio::sync::{mpsc::Receiver, watch};
 use tokio::time::sleep;
 use tokio_tungstenite::connect_async;
@@ -20,6 +22,33 @@ use crate::telemetry::SystemStats;
 const RECONNECT_SECS: u64 = 5;
 const STARTUP_RETRY_MS: u64 = 250;
 const STARTUP_FAST_RETRIES: u32 = 20;
+const READINESS_RETRIES: u32 = 40;
+
+async fn engine_is_ready(python_ws_url: &str) -> bool {
+    let Ok(url) = python_ws_url.parse::<Url>() else {
+        return false;
+    };
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let Some(port) = url.port_or_known_default() else {
+        return false;
+    };
+    let Ok(mut stream) = TcpStream::connect((host, port)).await else {
+        return false;
+    };
+    let request = format!("GET /health HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n");
+    if stream.write_all(request.as_bytes()).await.is_err() {
+        return false;
+    }
+    let mut response = [0_u8; 64];
+    match stream.read(&mut response).await {
+        Ok(size) => std::str::from_utf8(&response[..size])
+            .map(|text| text.starts_with("HTTP/1.1 200") || text.starts_with("HTTP/1.0 200"))
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
 
 /// Handshake WebSocket correcto: `into_client_request()` rellena Upgrade, Connection,
 /// Sec-WebSocket-Key, Sec-WebSocket-Version, Host; luego añadimos el token Rocky.
@@ -48,6 +77,18 @@ pub fn spawn_python_telemetry_bridge(
     app_handle: AppHandle,
 ) {
     tokio::spawn(async move {
+        let mut readiness_attempt = 0;
+        while !engine_is_ready(&python_ws_url).await {
+            readiness_attempt += 1;
+            if readiness_attempt >= READINESS_RETRIES {
+                eprintln!("[rocky-python-ws] engine sin readiness; iniciando reconexión normal");
+                break;
+            }
+            sleep(Duration::from_millis(250)).await;
+        }
+        if readiness_attempt < READINESS_RETRIES {
+            eprintln!("[rocky-python-ws] engine listo");
+        }
         let mut failed_attempts: u32 = 0;
         loop {
             let request = match build_ws_request(&python_ws_url, &auth_token) {
@@ -96,6 +137,7 @@ pub fn spawn_python_telemetry_bridge(
                                                 Some("chat") => Some("rocky-chat"),
                                                 Some("voice") => Some("voice-state"),
                                                 Some("model-status") => Some("model-status"),
+                                                Some("tool-activity") => Some("tool-activity"),
                                                 // Acks de telemetría y desconocidos: no van a la UI.
                                                 _ => None,
                                             };

@@ -102,11 +102,9 @@ fn terminate_process(
     if let Some(engine_pid) = engine_pid {
         protected_pids.push(engine_pid);
     }
-    if let Some(reason) = telemetry::classify_process_protection(
-        raw_pid,
-        &current_name,
-        &protected_pids,
-    ) {
+    if let Some(reason) =
+        telemetry::classify_process_protection(raw_pid, &current_name, &protected_pids)
+    {
         return Err(format!("No voy a terminar {current_name}: {reason}."));
     }
 
@@ -170,7 +168,8 @@ async fn main() {
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                         if let Some(control) = app.try_state::<PythonBridgeControl>() {
-                            if let Err(e) = control.0.try_send(r#"{"action":"listen"}"#.to_string()) {
+                            if let Err(e) = control.0.try_send(r#"{"action":"listen"}"#.to_string())
+                            {
                                 eprintln!("[rocky-hotkey] no se pudo pedir escucha: {e}");
                             }
                         }
@@ -207,7 +206,8 @@ async fn main() {
             // Telemetría: un único snapshot actual; comandos: cola pequeña y
             // acotada. Ambas decisiones eliminan crecimiento de memoria si el
             // engine se cae o tarda en arrancar.
-            let (stats_tx, stats_rx) = tokio::sync::watch::channel(telemetry::SystemStats::default());
+            let (stats_tx, stats_rx) =
+                tokio::sync::watch::channel(telemetry::SystemStats::default());
             let (cmd_tx, cmd_rx) = mpsc::channel::<String>(COMMAND_QUEUE_CAPACITY);
             app.manage(PythonBridgeControl(cmd_tx));
 

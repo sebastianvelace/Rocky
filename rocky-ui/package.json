@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev",
-    "dev:tauri": "rm -rf .next/dev && next dev",
+    "dev:tauri": "rm -rf .next/dev && next dev -H 127.0.0.1 -p 3000",
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit",

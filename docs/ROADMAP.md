@@ -38,6 +38,14 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
   Rust.
 - **Diagnóstico accionable** — `system.diagnose` cruza CPU/RAM globales con
   procesos top y recomienda qué revisar primero sin llamar al LLM.
+- **Ollama local** — selector de modelos instalados, streaming NDJSON y router
+  de proveedor. El host está restringido a loopback y un modelo se valida
+  contra `/api/tags` antes de activarse.
+- **Investigación con límites** — herramientas de lectura `workspace.search`
+  y `web.search`, sin shell ni escritura; las consultas explícitas también
+  funcionan aunque Groq no esté configurado.
+- **Límites de memoria** — `watch` conserva solo el último snapshot de
+  telemetría, la cola de comandos es finita y el streaming tiene backpressure.
 
 - **Contexto de procesos** — Rust envía rankings por CPU/RAM con PID, CPU
   normalizada por núcleos y memoria; `system.top` y `system.diagnose` usan
@@ -46,24 +54,30 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
 
 ## Corto plazo (siguiente iteración)
 
-### 1. Más telemetría
+### 1. Bucle de herramientas verificable
+Adoptar tool calling nativo de Ollama para encadenar varias herramientas con
+presupuesto de pasos, esquema JSON validado y un registro de decisiones. La
+política debe seguir siendo de mínimo privilegio: capacidades declaradas,
+resultados truncados y aprobación humana para toda futura operación mutante.
+
+### 2. Más telemetría
 Temperaturas, GPU (nvml), disco y red. El contrato `SystemTelemetry` crece con
 campos opcionales para no romper la UI vieja; la UI gana una fila de tarjetas
 secundarias.
 
-### 2. Configuración desde la UI
+### 3. Configuración desde la UI
 Voz TTS, umbrales de alerta, cooldown y credenciales opcionales deberían ser
 visibles/configurables sin editar archivos manualmente.
 
-### 3. Verificación visual automatizada
+### 4. Verificación visual automatizada
 Agregar una prueba de humo con Playwright para `npm run dev` que valide que la
 UI demo renderiza telemetría, consola y avatar sin solapamientos obvios.
 
-### 4. Diagnóstico con historial
+### 5. Diagnóstico con historial
 Comparar procesos contra ventanas recientes para detectar outliers persistentes,
 no solo el pico del último segundo.
 
-### 5. Health/readiness del engine
+### 6. Health/readiness del engine
 Agregar endpoint HTTP local `/health` o señal equivalente para que Tauri espere
 el arranque de Uvicorn antes de abrir el WebSocket y elimine por completo el
 retry inicial.
@@ -85,6 +99,9 @@ retry inicial.
 
 - El `TelemetryAck` por cada tick es tráfico ocioso (Rust no lo usa); se
   puede eliminar del contrato o responder 1 de cada N.
+- La reserva del puerto para Uvicorn deja una pequeña ventana TOCTOU entre
+  soltar el listener y que Python enlace el puerto. Un sidecar con socket
+  preabierto o readiness explícito eliminaría esta carrera.
 - El engine asume un único cliente WebSocket (el puente Rust); si algún día
   hay más, el estado del orquestador debe ser por conexión.
 - Los tests de integración WebSocket usan un harness ASGI propio porque

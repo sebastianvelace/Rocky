@@ -40,6 +40,16 @@ class TestIntentParser:
         parser = IntentParser(FakeGroq('{"tool": "chat", "confidence": 0.9}'), "")
         assert parser.parse("hola").tool == "chat"
 
+    def test_explicit_web_research_works_without_a_model(self) -> None:
+        parser = IntentParser(FakeGroq(None), tools_prompt="")
+        intent = parser.parse("Busca en internet las novedades de Python")
+        assert intent.tool == "web.search"
+        assert "Python" in intent.args["query"]
+
+    def test_explicit_workspace_search_works_without_a_model(self) -> None:
+        parser = IntentParser(FakeGroq(None), tools_prompt="")
+        assert parser.parse("Busca en el repositorio dónde se valida el token").tool == "workspace.search"
+
 
 def telemetry_with_processes(cpu: float = 10.0, ram: float = 20.0) -> SystemTelemetry:
     return SystemTelemetry.model_validate(

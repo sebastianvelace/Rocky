@@ -58,6 +58,11 @@ class HistoryStore:
                     "INSERT INTO turns (ts, role, content) VALUES (?, ?, ?)",
                     (time.time(), role, content),
                 )
+                # La memoria útil es una ventana, no un log sin límite. Esto
+                # evita crecimiento indefinido del SQLite en sesiones largas.
+                self._conn.execute(
+                    "DELETE FROM turns WHERE id NOT IN (SELECT id FROM turns ORDER BY id DESC LIMIT 1000)"
+                )
                 self._conn.commit()
         except Exception as exc:
             self._logger.warning("No se pudo persistir el turno: %s", exc)

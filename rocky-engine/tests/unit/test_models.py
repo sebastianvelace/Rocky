@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from src.domain.models import (
     AlertEvent,
     ChatEvent,
+    ModelStatusEvent,
     ProcessTelemetry,
     SystemTelemetry,
     VoiceStateEvent,
@@ -128,3 +129,12 @@ class TestOutboundEvents:
         assert VoiceStateEvent(state="listening").detail is None
         with pytest.raises(ValidationError):
             VoiceStateEvent(state="dancing")
+
+    def test_model_status_serializes_local_models(self) -> None:
+        event = ModelStatusEvent(
+            provider="ollama",
+            active_model="qwen3:8b",
+            models=[{"id": "qwen3:8b", "size_bytes": 5_000_000_000}],
+        )
+        assert event.type == "model-status"
+        assert event.models[0].id == "qwen3:8b"

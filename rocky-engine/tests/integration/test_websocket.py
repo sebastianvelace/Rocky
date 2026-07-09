@@ -29,6 +29,9 @@ ASGIApp = Callable[
 class FakeGroqClient:
     fallback_text = "Sistema bajo carga, Sebas. Groq está offline."
 
+    def __init__(self) -> None:
+        self.selected_model: str | None = None
+
     def get_telemetry_advice(self, cpu: float, ram: float, resource: str = "cpu") -> str:
         return f"Alerta de {resource}: CPU {cpu:.0f}%, RAM {ram:.0f}%."
 
@@ -39,6 +42,20 @@ class FakeGroqClient:
         self, user_text: str, telemetry: Any | None = None
     ) -> list[str]:
         return ["Respuesta ", "de prueba."]
+
+    def status(self) -> dict[str, object]:
+        return {
+            "provider": "ollama" if self.selected_model else "groq",
+            "active_model": self.selected_model or "llama-3.3-70b-versatile (Groq)",
+            "models": [{"id": "qwen3:8b", "size_bytes": 4_000_000_000}],
+            "detail": None,
+        }
+
+    def select_ollama_model(self, model: str) -> bool:
+        if model != "qwen3:8b":
+            return False
+        self.selected_model = model
+        return True
 
 
 class FakeTTSManager:
@@ -306,3 +323,17 @@ class TestChatFlow:
         assert orchestrator._last_telemetry.cpu == 42.0
         assert orchestrator._last_telemetry.ram == 33.0
         assert orchestrator._last_telemetry.top_cpu[0].name == "cargo"
+
+
+class TestModelFlow:
+    async def test_lists_and_selects_local_models(self, app: FastAPI) -> None:
+        async with ws_session(app, AUTH_HEADERS) as ws:
+            await ws.send_json({"action": "models.list"})
+            listed = await ws.receive_json()
+            assert listed["type"] == "model-status"
+            assert listed["models"][0]["id"] == "qwen3:8b"
+
+            await ws.send_json({"action": "models.select", "model": "qwen3:8b"})
+            selected = await ws.receive_json()
+            assert selected["provider"] == "ollama"
+            assert selected["active_model"] == "qwen3:8b"

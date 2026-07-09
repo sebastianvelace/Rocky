@@ -56,7 +56,7 @@ function VoiceConsoleBase({
   const lastIndex = chat.length - 1;
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col rounded border border-edge bg-panel">
+    <section className="flex min-h-0 flex-1 flex-col border-y border-edge bg-panel">
       <header className="flex items-center justify-between border-b border-edge px-4 py-2.5">
         <div className="flex items-center gap-3">
           <RockyAvatar state={voiceState} alerting={alerting} size={40} />
@@ -65,9 +65,9 @@ function VoiceConsoleBase({
             <p
               className={`text-xs ${
                 voiceState === "error"
-                  ? "text-alert"
+                  ? "text-ink"
                   : voiceBusy
-                    ? "text-accent"
+                    ? "text-ink"
                     : "text-ink-faint"
               }`}
             >
@@ -130,17 +130,17 @@ function VoiceConsoleBase({
           onClick={onListen}
           disabled={voiceBusy}
           title="Hablar con Rocky (micrófono)"
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+          className={`flex h-10 w-10 shrink-0 items-center justify-center border transition disabled:cursor-not-allowed disabled:opacity-40 ${
             voiceState === "listening"
-              ? "border-accent bg-accent/10 text-accent"
-              : "border-edge-bright bg-panel-2 text-accent hover:border-accent"
+              ? "border-ink bg-ink text-surface"
+              : "border-edge bg-panel-2 text-ink hover:border-ink"
           }`}
         >
           <Mic size={16} className={voiceState === "listening" ? "rocky-blink" : ""} aria-hidden />
           <span className="sr-only">Hablar</span>
         </button>
 
-        <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded border border-edge bg-surface px-3 focus-within:border-edge-bright">
+        <div className="flex h-10 min-w-0 flex-1 items-center gap-2 border border-edge bg-surface px-3 focus-within:border-ink">
           <span className="shrink-0 text-sm font-semibold text-ink-muted">&gt;</span>
           <input
             ref={inputRef}
@@ -161,7 +161,7 @@ function VoiceConsoleBase({
           onClick={submit}
           disabled={voiceBusy || !draft.trim()}
           title="Enviar (Enter)"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-edge-bright bg-panel-2 text-accent transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-10 w-10 shrink-0 items-center justify-center border border-edge bg-panel-2 text-ink transition hover:bg-ink hover:text-surface disabled:cursor-not-allowed disabled:opacity-40"
         >
           <CornerDownLeft size={16} aria-hidden />
           <span className="sr-only">Enviar</span>

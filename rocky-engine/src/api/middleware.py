@@ -1,5 +1,6 @@
 import logging
 import os
+import secrets
 from typing import Optional
 
 from fastapi import WebSocket
@@ -22,13 +23,10 @@ class RockySecurity:
     def validate_token(self, received_token: Optional[str]) -> bool:
         if not received_token:
             return False
-        return received_token == self._expected_token()
+        return secrets.compare_digest(received_token, self._expected_token())
 
     async def validate_websocket(self, websocket: WebSocket) -> bool:
-        received_token = (
-            websocket.headers.get("x-rocky-auth-token")
-            or websocket.query_params.get("token")
-        )
+        received_token = websocket.headers.get("x-rocky-auth-token")
 
         is_valid = self.validate_token(received_token)
         if not is_valid:

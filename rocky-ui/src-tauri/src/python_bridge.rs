@@ -5,7 +5,7 @@ use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter};
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::{mpsc::Receiver, watch};
 use tokio::time::sleep;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -43,8 +43,8 @@ fn build_ws_request(python_ws_url: &str, token: &str) -> WsResult<Request<()>> {
 pub fn spawn_python_telemetry_bridge(
     python_ws_url: String,
     auth_token: String,
-    mut stats_rx: UnboundedReceiver<SystemStats>,
-    mut cmd_rx: UnboundedReceiver<String>,
+    mut stats_rx: watch::Receiver<SystemStats>,
+    mut cmd_rx: Receiver<String>,
     app_handle: AppHandle,
 ) {
     tokio::spawn(async move {
@@ -63,12 +63,6 @@ pub fn spawn_python_telemetry_bridge(
                 Ok((ws, _response)) => {
                     failed_attempts = 0;
                     eprintln!("[rocky-python-ws] connected to {python_ws_url}");
-
-                    // Descartar la telemetría acumulada mientras estuvimos
-                    // desconectados: enviarla en ráfaga haría que el analyzer
-                    // viera N lecturas "consecutivas" viejas en un instante
-                    // y pudiera disparar una falsa alerta sostenida.
-                    while stats_rx.try_recv().is_ok() {}
 
                     let (mut write, mut read) = ws.split();
 
@@ -101,6 +95,7 @@ pub fn spawn_python_telemetry_bridge(
                                                 Some("alert") => Some("system-alert"),
                                                 Some("chat") => Some("rocky-chat"),
                                                 Some("voice") => Some("voice-state"),
+                                                Some("model-status") => Some("model-status"),
                                                 // Acks de telemetría y desconocidos: no van a la UI.
                                                 _ => None,
                                             };
@@ -122,9 +117,12 @@ pub fn spawn_python_telemetry_bridge(
                                 }
                             }
 
-                            stats = stats_rx.recv() => {
-                                match stats {
-                                    Some(stats) => {
+                            changed = stats_rx.changed() => {
+                                match changed {
+                                    Ok(()) => {
+                                        // `watch` conserva solo el último snapshot: durante
+                                        // una caída del engine no acumula telemetría ni RAM.
+                                        let stats = stats_rx.borrow_and_update().clone();
                                         let json = match serde_json::to_string(&stats) {
                                             Ok(j) => j,
                                             Err(e) => {
@@ -137,7 +135,7 @@ pub fn spawn_python_telemetry_bridge(
                                             break;
                                         }
                                     }
-                                    None => {
+                                    Err(_) => {
                                         eprintln!("[rocky-python-ws] stats channel closed");
                                         return;
                                     }

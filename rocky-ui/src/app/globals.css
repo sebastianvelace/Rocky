@@ -1,31 +1,29 @@
 @import "tailwindcss";
 
 /*
- * Tokens de Rocky (estética terminal/industrial oscura).
- * Los colores de datos (cpu/ram) están validados para CVD y contraste
- * sobre la superficie #0a0e0c.
+ * Superficie monocroma de alto contraste. Las métricas se distinguen por
+ * posición y etiqueta, no por colores decorativos.
  */
 @theme {
-  --color-surface: #0a0e0c;
-  --color-panel: #10160f;
-  --color-panel-2: #141b13;
-  --color-edge: #223026;
-  --color-edge-bright: #35513f;
+  --color-surface: #ffffff;
+  --color-panel: #fafafa;
+  --color-panel-2: #ededed;
+  --color-edge: #d4d4d4;
+  --color-edge-bright: #737373;
 
-  --color-ink: #d9e4dc;
-  --color-ink-muted: #8aa092;
-  --color-ink-faint: #5c7263;
+  --color-ink: #0a0a0a;
+  --color-ink-muted: #525252;
+  --color-ink-faint: #a3a3a3;
 
-  --color-accent: #4ade80;
+  --color-accent: #0a0a0a;
 
-  --color-cpu: #16a34a;
-  --color-ram: #0284c7;
+  --color-cpu: #0a0a0a;
+  --color-ram: #525252;
 
-  --color-warn: #d97706;
-  --color-alert: #ef4444;
+  --color-warn: #0a0a0a;
+  --color-alert: #0a0a0a;
 
-  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular,
-    Menlo, monospace;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 html,
@@ -48,7 +46,7 @@ body {
 }
 .rocky-scroll::-webkit-scrollbar-thumb {
   background: var(--color-edge);
-  border-radius: 3px;
+  border-radius: 0;
 }
 
 @keyframes rocky-blink {

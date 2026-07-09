@@ -11,9 +11,9 @@ type Props = {
 
 function MetricBar({ value, color }: { value: number; color: string }) {
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-panel-2">
+    <div className="h-1.5 w-full overflow-hidden bg-panel-2">
       <div
-        className="h-full rounded-full transition-all duration-500"
+        className="h-full transition-all duration-500"
         style={{ width: `${Math.min(100, Math.max(0, value))}%`, background: color }}
       />
     </div>
@@ -42,7 +42,7 @@ function RankList({
   canTerminate: boolean;
 }) {
   return (
-    <section className="min-w-0 rounded border border-edge bg-panel p-4">
+    <section className="min-w-0 border-t border-edge pt-3">
       <header className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-ink-muted">
         <span style={{ color }}>{icon}</span>
         {title}
@@ -158,7 +158,7 @@ export function ProcessRank({ topCpu = [], topRam = [] }: Props) {
           icon={<Activity size={14} aria-hidden />}
           processes={topCpu}
           metric="cpu"
-          color="#16a34a"
+          color="#0a0a0a"
           onCopyPid={copyPid}
           onTerminate={terminate}
           busyPid={busyPid}
@@ -169,7 +169,7 @@ export function ProcessRank({ topCpu = [], topRam = [] }: Props) {
           icon={<Database size={14} aria-hidden />}
           processes={topRam}
           metric="ram"
-          color="#0284c7"
+          color="#525252"
           onCopyPid={copyPid}
           onTerminate={terminate}
           busyPid={busyPid}

@@ -22,14 +22,16 @@ use tokio::time::sleep;
 struct RockyEngineProcess(Mutex<Option<Child>>);
 
 #[derive(Clone)]
-struct PythonBridgeControl(mpsc::UnboundedSender<String>);
+struct PythonBridgeControl(mpsc::Sender<String>);
+
+const COMMAND_QUEUE_CAPACITY: usize = 32;
 
 #[tauri::command]
 fn request_listen(control: State<'_, PythonBridgeControl>) -> Result<(), String> {
     control
         .0
-        .send(r#"{"action":"listen"}"#.to_string())
-        .map_err(|e| e.to_string())
+        .try_send(r#"{"action":"listen"}"#.to_string())
+        .map_err(|_| "El engine está ocupado o desconectado; intenta de nuevo.".to_string())
 }
 
 #[tauri::command]
@@ -37,8 +39,25 @@ fn send_chat(text: String, control: State<'_, PythonBridgeControl>) -> Result<()
     let payload = serde_json::json!({ "action": "chat", "text": text });
     control
         .0
-        .send(payload.to_string())
-        .map_err(|e| e.to_string())
+        .try_send(payload.to_string())
+        .map_err(|_| "El engine está ocupado o desconectado; intenta de nuevo.".to_string())
+}
+
+#[tauri::command]
+fn list_models(control: State<'_, PythonBridgeControl>) -> Result<(), String> {
+    control
+        .0
+        .try_send(r#"{"action":"models.list"}"#.to_string())
+        .map_err(|_| "El engine está ocupado o desconectado; intenta de nuevo.".to_string())
+}
+
+#[tauri::command]
+fn select_model(model: String, control: State<'_, PythonBridgeControl>) -> Result<(), String> {
+    let payload = serde_json::json!({ "action": "models.select", "model": model });
+    control
+        .0
+        .try_send(payload.to_string())
+        .map_err(|_| "El engine está ocupado o desconectado; intenta de nuevo.".to_string())
 }
 
 #[tauri::command]
@@ -77,6 +96,18 @@ fn terminate_process(
         return Err(format!(
             "El PID {raw_pid} ahora pertenece a '{current_name}', no a '{expected_name}'."
         ));
+    }
+
+    let mut protected_pids = vec![std::process::id()];
+    if let Some(engine_pid) = engine_pid {
+        protected_pids.push(engine_pid);
+    }
+    if let Some(reason) = telemetry::classify_process_protection(
+        raw_pid,
+        &current_name,
+        &protected_pids,
+    ) {
+        return Err(format!("No voy a terminar {current_name}: {reason}."));
     }
 
     if process.kill() {
@@ -119,7 +150,7 @@ fn spawn_rocky_engine(token: String, port: u16) -> std::io::Result<Child> {
 async fn main() {
     // 1. Generar el secreto compartido
     let token = auth_token::generate_token();
-    println!("[rocky-handshake] ROCKY_AUTH_TOKEN={}", token);
+    println!("[rocky-handshake] token efímero generado");
 
     // 2. Inyectar el token en el entorno del proceso actual
     // Esto es vital para que los sub-procesos que lance Tauri lo hereden
@@ -139,7 +170,7 @@ async fn main() {
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                         if let Some(control) = app.try_state::<PythonBridgeControl>() {
-                            if let Err(e) = control.0.send(r#"{"action":"listen"}"#.to_string()) {
+                            if let Err(e) = control.0.try_send(r#"{"action":"listen"}"#.to_string()) {
                                 eprintln!("[rocky-hotkey] no se pudo pedir escucha: {e}");
                             }
                         }
@@ -150,6 +181,8 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             request_listen,
             send_chat,
+            list_models,
+            select_model,
             terminate_process
         ])
         .setup(move |app| {
@@ -171,8 +204,11 @@ async fn main() {
                 }
             }
 
-            let (stats_tx, stats_rx) = mpsc::unbounded_channel();
-            let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<String>();
+            // Telemetría: un único snapshot actual; comandos: cola pequeña y
+            // acotada. Ambas decisiones eliminan crecimiento de memoria si el
+            // engine se cae o tarda en arrancar.
+            let (stats_tx, stats_rx) = tokio::sync::watch::channel(telemetry::SystemStats::default());
+            let (cmd_tx, cmd_rx) = mpsc::channel::<String>(COMMAND_QUEUE_CAPACITY);
             app.manage(PythonBridgeControl(cmd_tx));
 
             // Registrar Super+Espacio. Si el compositor ya lo usa (p. ej.
@@ -225,7 +261,8 @@ async fn main() {
                         eprintln!("[rocky-telemetry] failed to emit event: {error}");
                     }
 
-                    if stats_tx.send(stats).is_err() {
+                    stats_tx.send_replace(stats);
+                    if stats_tx.is_closed() {
                         eprintln!("[rocky-telemetry] python bridge channel closed");
                     }
 

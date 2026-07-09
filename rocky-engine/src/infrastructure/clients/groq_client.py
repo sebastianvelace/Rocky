@@ -104,6 +104,11 @@ class GroqClient:
     def fallback_text(self) -> str:
         return self._FALLBACK
 
+    @property
+    def available(self) -> bool:
+        """Indica si el proveedor puede responder, sin exponer credenciales."""
+        return self._client is not None
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.5, max=4),

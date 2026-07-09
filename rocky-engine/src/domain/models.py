@@ -111,3 +111,26 @@ class VoiceStateEvent(BaseModel):
     type: Literal["voice"] = "voice"
     state: Literal["listening", "transcribing", "thinking", "speaking", "idle", "error"]
     detail: Optional[str] = None
+
+
+class ModelOption(BaseModel):
+    """Modelo local expuesto por Ollama, sin revelar detalles del host."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    size_bytes: int | None = None
+    parameter_size: str | None = None
+    quantization: str | None = None
+
+
+class ModelStatusEvent(BaseModel):
+    """Estado de los modelos disponibles para el selector de la UI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["model-status"] = "model-status"
+    provider: Literal["ollama", "groq", "none"] = "none"
+    active_model: str | None = None
+    models: list[ModelOption] = Field(default_factory=list)
+    detail: str | None = None

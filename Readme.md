@@ -46,6 +46,15 @@ Funciona de punta a punta:
 - ✅ **Memoria persistente** — la conversación se guarda en SQLite
   (`~/.local/share/rocky/history.db`) y los últimos turnos se recargan al
   arrancar: reiniciar Rocky ya no es amnesia total.
+- ✅ **Modelos locales seleccionables** — el selector consulta los modelos que
+  Ollama expone en `127.0.0.1:11434/api/tags`; elegir uno cambia el proveedor
+  de conversación sin exponer Ollama ni el token a la webview.
+- ✅ **Investigación acotada** — `web.search` consulta fuentes públicas y
+  `workspace.search` recorre una única raíz local de solo lectura. No hay
+  shell, escritura de archivos ni ejecución de comandos desde el modelo.
+- ✅ **Memoria acotada** — telemetría retenida como último snapshot, cola de
+  comandos finita, streaming con backpressure, 200 mensajes en pantalla y
+  retención de 1.000 turnos en SQLite.
 - ✅ **Resiliencia** — Groq reintenta fallos transitorios con backoff
   exponencial (Tenacity); errores de autenticación se detectan como
   configuración inválida, no se reintentan y degradan a fallback.
@@ -130,10 +139,12 @@ tipados en TypeScript (`src/hooks/useRocky.ts`).
 | Rust → Python | `{top_cpu, top_ram}` | — | rankings opcionales de procesos con PID, CPU, RAM, memoria y protección |
 | Rust → Python | `{"action":"listen"}` | — | iniciar pipeline de voz |
 | Rust → Python | `{"action":"chat","text"}` | — | mensaje escrito por el usuario |
+| Rust → Python | `{"action":"models.list/select"}` | — | consulta o selecciona un modelo instalado en Ollama |
 | Python → Rust | `TelemetryAck` | — (no llega a UI) | `{status, cpu_received}` |
 | Python → Rust | `AlertEvent` | `system-alert` | `{type:"alert", level, resource, message}` |
 | Python → Rust | `ChatEvent` | `rocky-chat` | `{type:"chat", role, text, partial}` — `partial:true` = delta de streaming; el evento final trae el texto completo |
 | Python → Rust | `VoiceStateEvent` | `voice-state` | `{type:"voice", state, detail?}` |
+| Python → Rust | `ModelStatusEvent` | `model-status` | modelos locales disponibles y modelo activo |
 | Rust → UI | — | `system-stats` | `{cpu, ram, top_cpu?, top_ram?}` con procesos protegidos marcados |
 
 ## Estructura del repositorio
@@ -178,6 +189,9 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
 
 2. **Secretos**: copia `.env.example` a `rocky-engine/.env` y pon tu
    `GROQ_API_KEY`. (Sin ella, Rocky funciona con respuestas de fallback.)
+   Para modelos locales, inicia Ollama y configura opcionalmente
+   `ROCKY_MODEL_PROVIDER=ollama` y `ROCKY_OLLAMA_MODEL=<modelo>`. También
+   puedes seleccionar cualquier modelo instalado desde la cabecera de Rocky.
 
 3. **App completa** (Tauri lanza Next.js y el engine automáticamente en un
    puerto local libre):
@@ -219,5 +233,12 @@ python -m pytest
   arranque, generado por Rust e inyectado al subproceso Python por entorno.
 - El engine escucha solo en `127.0.0.1`.
 - El webview no conoce el token ni tiene acceso al engine.
+- Ollama se limita a `localhost`/`127.0.0.1`; Rocky no acepta un host remoto
+  para esta integración. La investigación web puede desactivarse con
+  `ROCKY_WEB_ENABLED=false`; la lectura local queda confinada a
+  `ROCKY_WORKSPACE_ROOT` (por defecto, la raíz del repositorio).
+- Las herramientas de investigación son solo de lectura y están limitadas en
+  número/tamaño de archivos y resultados. El modelo no recibe capacidad de
+  ejecutar comandos, alterar procesos ni navegar a hosts arbitrarios.
 - El audio del micrófono se transcribe desde un archivo temporal que se borra
   de inmediato; nada persiste en disco.

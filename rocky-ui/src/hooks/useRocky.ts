@@ -59,8 +59,23 @@ export type VoiceState =
   | "speaking"
   | "error";
 
+export type LocalModel = {
+  id: string;
+  size_bytes?: number | null;
+  parameter_size?: string | null;
+  quantization?: string | null;
+};
+
+export type ModelStatus = {
+  provider: "ollama" | "groq" | "none";
+  active_model?: string | null;
+  models: LocalModel[];
+  detail?: string | null;
+};
+
 const ALERT_VISIBLE_MS = 8000;
 const VOICE_SAFETY_TIMEOUT_MS = 15000;
+const MAX_CHAT_MESSAGES = 200;
 
 const DEMO_REPLIES = [
   "Modo demo, Sebas: sin engine no hay Llama, pero el teclado se siente bien, ¿no?",
@@ -118,6 +133,7 @@ export function useRocky() {
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceDetail, setVoiceDetail] = useState<string | null>(null);
+  const [modelStatus, setModelStatus] = useState<ModelStatus>({ provider: "none", models: [] });
 
   const alertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceSafetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -188,8 +204,8 @@ export function useRocky() {
               }
               return [
                 ...prev,
-                { role: "rocky", text: payload.text, ts: Date.now(), streaming: true },
-              ];
+                { role: "rocky" as const, text: payload.text, ts: Date.now(), streaming: true },
+              ].slice(-MAX_CHAT_MESSAGES);
             }
 
             if (payload.role === "rocky" && lastIsStream) {
@@ -200,7 +216,9 @@ export function useRocky() {
               ];
             }
 
-            return [...prev, { role: payload.role, text: payload.text, ts: Date.now() }];
+            return [...prev, { role: payload.role, text: payload.text, ts: Date.now() }].slice(
+              -MAX_CHAT_MESSAGES
+            );
           });
         }
       );
@@ -208,7 +226,7 @@ export function useRocky() {
       await register<{ state: VoiceState; detail?: string | null }>(
         "voice-state",
         (payload) => {
-          if (voiceSafetyTimer.current) {
+          if (voiceSafetyTimer.current && (payload.state === "idle" || payload.state === "error")) {
             clearTimeout(voiceSafetyTimer.current);
             voiceSafetyTimer.current = null;
           }
@@ -216,6 +234,17 @@ export function useRocky() {
           setVoiceDetail(payload.detail ?? null);
         }
       );
+
+      await register<ModelStatus>("model-status", (payload) => {
+        setModelStatus({ ...payload, models: payload.models ?? [] });
+      });
+
+      const { invoke } = await import("@tauri-apps/api/core");
+      try {
+        await invoke("list_models");
+      } catch {
+        // El engine puede estar arrancando: el botón permite reintentar.
+      }
     })();
 
     return () => {
@@ -289,6 +318,18 @@ export function useRocky() {
 
   const voiceBusy = voiceState !== "idle" && voiceState !== "error";
 
+  const refreshModels = useCallback(async () => {
+    if (!isTauri()) return;
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("list_models");
+  }, []);
+
+  const selectModel = useCallback(async (model: string) => {
+    if (!isTauri() || !model) return;
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("select_model", { model });
+  }, []);
+
   return {
     connected,
     demoMode,
@@ -300,7 +341,10 @@ export function useRocky() {
     voiceState,
     voiceDetail,
     voiceBusy,
+    modelStatus,
     startListening,
     sendChat,
+    refreshModels,
+    selectModel,
   };
 }

@@ -1,10 +1,10 @@
 # Estado Operativo de Rocky
 
-Última inspección local: 2026-07-08.
+Última inspección local: 2026-07-09.
 
 ## Verificado
 
-- Engine Python: `56 passed` con `venv/bin/python -m pytest -q`.
+- Engine Python: `62 passed` con `venv/bin/python -m pytest -q`.
 - Frontend: `npm run build` genera export estático correctamente.
 - TypeScript: `npm run lint` / `npm run typecheck` ejecutan `tsc --noEmit`.
 - Rust/Tauri: `cargo check` y `cargo test` pasan.
@@ -22,6 +22,13 @@
 - Groq: los errores de autenticación (`401`, key inválida/sin permisos) no se
   reintentan; Rocky deshabilita el cliente en memoria y degrada a fallback
   sin saturar logs ni la API.
+- Ollama: Rocky consulta modelos locales por `/api/tags`, permite seleccionar
+  uno desde la UI y consume `/api/chat` por streaming NDJSON. Si Ollama está
+  apagado, el selector queda recuperable y no inventa modelos.
+- Investigación: `web.search` y `workspace.search` son de solo lectura, con
+  límites de resultados/archivos y sin capacidad de ejecutar comandos.
+- Memoria: los canales de telemetría/comandos tienen retención acotada;
+  streaming, historial SQLite y chat visual también tienen límites explícitos.
 
 ## Correcciones Aplicadas
 

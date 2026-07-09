@@ -21,6 +21,8 @@ from src.core.tool_dispatcher import ToolDispatcher
 from src.domain.models import (
     AlertEvent,
     ChatEvent,
+    ModelOption,
+    ModelStatusEvent,
     SystemTelemetry,
     TelemetryAck,
     VoiceStateEvent,
@@ -72,6 +74,12 @@ class RockyOrchestrator:
             return
 
         action = data.get("action")
+        if action == "models.list":
+            await self._send_model_status(websocket)
+            return
+        if action == "models.select":
+            await self._select_model(websocket, str(data.get("model") or ""))
+            return
         if action == "listen":
             self._spawn_exclusive(self._voice_pipeline(websocket))
             return
@@ -86,6 +94,36 @@ class RockyOrchestrator:
     async def _send(self, websocket: WebSocket, event: BaseModel) -> None:
         async with self._send_lock:
             await websocket.send_text(event.model_dump_json())
+
+    async def _send_model_status(self, websocket: WebSocket) -> None:
+        status = await asyncio.to_thread(self._groq.status) if hasattr(self._groq, "status") else {}
+        raw_models = status.get("models", []) if isinstance(status, dict) else []
+        models = []
+        for entry in raw_models:
+            try:
+                models.append(ModelOption.model_validate(entry))
+            except ValidationError:
+                continue
+        provider = status.get("provider", "none") if isinstance(status, dict) else "none"
+        if provider not in {"ollama", "groq", "none"}:
+            provider = "none"
+        await self._send(
+            websocket,
+            ModelStatusEvent(
+                provider=provider,
+                active_model=status.get("active_model") if isinstance(status, dict) else None,
+                models=models,
+                detail=status.get("detail") if isinstance(status, dict) else None,
+            ),
+        )
+
+    async def _select_model(self, websocket: WebSocket, model: str) -> None:
+        selected = False
+        if hasattr(self._groq, "select_ollama_model"):
+            selected = await asyncio.to_thread(self._groq.select_ollama_model, model)
+        if not selected:
+            self._logger.warning("Selección de modelo rechazada: %s", model)
+        await self._send_model_status(websocket)
 
     # ------------------------------------------------------------------
     # Telemetría
@@ -158,17 +196,31 @@ class RockyOrchestrator:
         El generador de Groq es bloqueante: corre en un hilo y empuja los
         deltas a una cola del event loop para no congelar la telemetría.
         """
-        queue: asyncio.Queue[str | None] = asyncio.Queue()
+        # Backpressure real: si la UI/socket se ralentiza, el hilo productor
+        # espera en vez de acumular una respuesta larga completa en RAM.
+        queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=32)
         loop = asyncio.get_running_loop()
+
+        def enqueue(item: str | None) -> None:
+            try:
+                # En producción `producer` corre en un worker: bloquear aquí
+                # propaga presión de vuelta al cliente de streaming.
+                asyncio.get_running_loop()
+            except RuntimeError:
+                asyncio.run_coroutine_threadsafe(queue.put(item), loop).result()
+            else:
+                # El harness ASGI ejecuta el executor inline; esperar a la
+                # misma cola en ese caso bloquearía el loop de pruebas.
+                loop.call_soon(queue.put_nowait, item)
 
         def producer() -> None:
             try:
                 for delta in self._groq.stream_conversational_reply(
                     text, self._telemetry_context()
                 ):
-                    loop.call_soon_threadsafe(queue.put_nowait, delta)
+                    enqueue(delta)
             finally:
-                loop.call_soon_threadsafe(queue.put_nowait, None)
+                enqueue(None)
 
         producer_future = loop.run_in_executor(None, producer)
 

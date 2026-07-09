@@ -7,7 +7,7 @@ pub const SYSTEM_STATS_EVENT: &str = "system-stats";
 /// Procesos que viajan en cada ranking de cada tick.
 pub const TOP_PROCESS_COUNT: usize = 5;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct SystemStats {
     pub cpu: f32,
     pub ram: f32,
@@ -15,7 +15,7 @@ pub struct SystemStats {
     pub top_ram: Vec<ProcessStats>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct ProcessStats {
     pub pid: String,
     pub name: String,
@@ -90,7 +90,7 @@ pub fn collect_stats(system: &mut System, protected_pids: &[u32]) -> SystemStats
     }
 }
 
-fn classify_process_protection(
+pub fn classify_process_protection(
     pid: u32,
     name: &str,
     protected_pids: &[u32],

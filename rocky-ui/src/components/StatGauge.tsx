@@ -67,7 +67,7 @@ export function StatGauge({ label, icon, value, history, color, threshold }: Pro
   const offset = HISTORY_LENGTH - history.length;
 
   return (
-    <section className="rounded border border-edge bg-panel p-4">
+    <section className="border-t border-edge pt-3">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-ink-muted">
           <span style={{ color }}>{icon}</span>
@@ -87,9 +87,9 @@ export function StatGauge({ label, icon, value, history, color, threshold }: Pro
       </p>
 
       {/* Barra de uso con marca de umbral */}
-      <div className="relative mt-3 h-1.5 w-full overflow-hidden rounded-full bg-panel-2">
+      <div className="relative mt-3 h-1.5 w-full overflow-hidden bg-panel-2">
         <div
-          className="h-full rounded-full transition-all duration-500"
+          className="h-full transition-all duration-500"
           style={{ width: `${Math.min(100, value)}%`, background: color }}
         />
         <div

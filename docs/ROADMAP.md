@@ -34,6 +34,8 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
 - **Acciones seguras sobre procesos** — la UI permite copiar PID y terminar un
   proceso con confirmación, validando nombre/PID y bloqueando procesos de
   Rocky.
+- **Diagnóstico accionable** — `system.diagnose` cruza CPU/RAM globales con
+  procesos top y recomienda qué revisar primero sin llamar al LLM.
 
 ## Corto plazo (siguiente iteración)
 
@@ -50,10 +52,9 @@ visibles/configurables sin editar archivos manualmente.
 Agregar una prueba de humo con Playwright para `npm run dev` que valide que la
 UI demo renderiza telemetría, consola y avatar sin solapamientos obvios.
 
-### 4. Diagnóstico accionable
-Convertir el ranking de procesos en recomendaciones: detectar outliers,
-comparar contra historial reciente y sugerir acciones antes de ofrecer cerrar
-un proceso.
+### 4. Diagnóstico con historial
+Comparar procesos contra ventanas recientes para detectar outliers persistentes,
+no solo el pico del último segundo.
 
 ## Largo plazo / ideas
 

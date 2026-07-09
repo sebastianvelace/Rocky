@@ -16,6 +16,8 @@
   principales por consumo; visible en UI y disponible vía `system.top`.
 - Acciones de procesos: copiar PID y terminar proceso desde Tauri con
   confirmación, validación de nombre/PID y protección para Rocky/engine.
+- Diagnóstico determinista: `system.diagnose` identifica CPU/RAM como cuello de
+  botella y recomienda qué proceso revisar primero.
 
 ## Correcciones Aplicadas
 

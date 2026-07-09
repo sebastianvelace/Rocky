@@ -4,7 +4,7 @@ import pytest
 
 from src.core.intent_parser import IntentParser
 from src.core.tool_dispatcher import ToolDispatcher
-from src.core.tools.system import SystemStatusTool, SystemTopTool
+from src.core.tools.system import SystemDiagnoseTool, SystemStatusTool, SystemTopTool
 from src.domain.models import Intent, SystemTelemetry
 from src.infrastructure.clients.groq_client import GroqClient
 
@@ -100,8 +100,40 @@ class TestToolDispatcher:
         assert "Top RAM" in result
         assert "firefox" in result
 
+    @pytest.mark.asyncio
+    async def test_system_diagnose_recommends_ram_offender(self) -> None:
+        telemetry = SystemTelemetry.model_validate(
+            {
+                "cpu": 62.0,
+                "ram": 94.0,
+                "top_cpu": [
+                    {
+                        "pid": "123",
+                        "name": "cargo",
+                        "cpu": 16.0,
+                        "ram": 1.1,
+                        "memory_mb": 90,
+                    }
+                ],
+                "top_ram": [
+                    {
+                        "pid": "456",
+                        "name": "firefox",
+                        "cpu": 5.0,
+                        "ram": 12.2,
+                        "memory_mb": 1400,
+                    }
+                ],
+            }
+        )
+        result = await SystemDiagnoseTool().run({}, telemetry)
+        assert "RAM" in result
+        assert "firefox" in result
+        assert "Prioridad" in result
+
     def test_tools_prompt_lists_tools_and_chat(self) -> None:
         prompt = ToolDispatcher().tools_prompt
         assert "system.status" in prompt
         assert "system.top" in prompt
+        assert "system.diagnose" in prompt
         assert "chat" in prompt

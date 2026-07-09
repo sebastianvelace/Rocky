@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from src.core.tools.system import SystemStatusTool, SystemTopTool
+from src.core.tools.system import SystemDiagnoseTool, SystemStatusTool, SystemTopTool
 from src.domain.interfaces import BaseTool
 from src.domain.models import Intent, SystemTelemetry
 
@@ -18,7 +18,11 @@ from src.domain.models import Intent, SystemTelemetry
 class ToolDispatcher:
     def __init__(self, tools: list[BaseTool] | None = None) -> None:
         self._logger = logging.getLogger("rocky.dispatcher")
-        registry = tools if tools is not None else [SystemStatusTool(), SystemTopTool()]
+        registry = (
+            tools
+            if tools is not None
+            else [SystemStatusTool(), SystemTopTool(), SystemDiagnoseTool()]
+        )
         self._tools: dict[str, BaseTool] = {tool.name: tool for tool in registry}
 
     @property

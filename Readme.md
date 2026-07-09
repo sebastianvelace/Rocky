@@ -53,6 +53,8 @@ Funciona de punta a punta:
 - ✅ **Acciones seguras sobre procesos** — desde la UI puedes copiar PID o
   terminar un proceso con confirmación explícita. Rocky bloquea PIDs críticos,
   su propia app y el engine Python.
+- ✅ **Diagnóstico accionable** — `system.diagnose` resume el cuello de botella
+  actual y sugiere qué proceso revisar primero, sin depender del LLM.
 - ✅ **Avatar animado** — Rocky respira y parpadea en reposo, emite anillos
   de sonar al escuchar, gira un anillo al pensar, mueve una boca ecualizador
   al hablar y se sacude en rojo ante una alerta. Todo SVG + CSS (respeta

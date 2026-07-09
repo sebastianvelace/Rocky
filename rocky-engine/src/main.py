@@ -21,6 +21,7 @@ from src.core.tools import (
     SpotifyNextTool,
     SpotifyPauseTool,
     SpotifyPlayTool,
+    SystemDiagnoseTool,
     SystemStatusTool,
     SystemTopTool,
 )
@@ -47,6 +48,7 @@ dispatcher = ToolDispatcher(
         SpotifyNextTool(spotify),
         CalendarTodayTool(gcalendar),
         SystemTopTool(),
+        SystemDiagnoseTool(),
     ]
 )
 

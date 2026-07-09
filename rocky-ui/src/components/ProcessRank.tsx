@@ -54,6 +54,11 @@ function RankList({
         <div className="space-y-3">
           {processes.map((process, index) => {
             const value = metric === "cpu" ? process.cpu : process.ram;
+            const blockedReason =
+              process.protection_reason ??
+              (process.protected ? "proceso protegido" : null);
+            const terminateDisabled =
+              !canTerminate || Boolean(process.protected) || busyPid === process.pid;
             return (
               <div key={`${process.pid}-${process.name}-${index}`} className="min-w-0">
                 <div className="mb-1 flex items-baseline justify-between gap-3">
@@ -79,12 +84,14 @@ function RankList({
                     <button
                       type="button"
                       title={
-                        canTerminate
-                          ? `Terminar ${process.name} (${process.pid})`
-                          : "Solo disponible dentro de Tauri"
+                        blockedReason
+                          ? `No terminable: ${blockedReason}`
+                          : canTerminate
+                            ? `Terminar ${process.name} (${process.pid})`
+                            : "Solo disponible dentro de Tauri"
                       }
                       onClick={() => onTerminate(process)}
-                      disabled={!canTerminate || busyPid === process.pid}
+                      disabled={terminateDisabled}
                       className="flex h-6 w-6 items-center justify-center rounded border border-edge text-alert transition hover:border-alert disabled:cursor-not-allowed disabled:opacity-35"
                     >
                       <OctagonX size={12} aria-hidden />
@@ -118,6 +125,10 @@ export function ProcessRank({ topCpu = [], topRam = [] }: Props) {
 
   const terminate = async (process: ProcessStats) => {
     if (!canTerminate) return;
+    if (process.protected) {
+      setStatus(`No terminable: ${process.protection_reason ?? "proceso protegido"}.`);
+      return;
+    }
     const confirmed = window.confirm(
       `Terminar ${process.name} (PID ${process.pid})?\n\nEsto enviará una señal de cierre al proceso seleccionado.`
     );

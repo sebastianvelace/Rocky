@@ -34,6 +34,8 @@ class TestSystemTelemetry:
                         "cpu": 8,
                         "ram": 2,
                         "memory_mb": 256,
+                        "protected": True,
+                        "protection_reason": "proceso interno de Rocky",
                     }
                 ],
                 "top_ram": [],
@@ -41,7 +43,13 @@ class TestSystemTelemetry:
         )
         assert t.top_cpu == [
             ProcessTelemetry(
-                pid="123", name="python", cpu=8.0, ram=2.0, memory_mb=256.0
+                pid="123",
+                name="python",
+                cpu=8.0,
+                ram=2.0,
+                memory_mb=256.0,
+                protected=True,
+                protection_reason="proceso interno de Rocky",
             )
         ]
 

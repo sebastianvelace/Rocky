@@ -24,6 +24,8 @@ export type ProcessStats = {
   cpu: number;
   ram: number;
   memory_mb: number;
+  protected?: boolean;
+  protection_reason?: string | null;
 };
 
 export type SystemStats = {
@@ -71,7 +73,15 @@ const DEMO_PROCESSES = [
   { pid: "2142", name: "next-dev", cpu: 18, ram: 4.2, memory_mb: 520 },
   { pid: "2198", name: "rust-analyzer", cpu: 11, ram: 3.6, memory_mb: 450 },
   { pid: "2050", name: "code", cpu: 7, ram: 8.1, memory_mb: 990 },
-  { pid: "2281", name: "uvicorn", cpu: 4, ram: 1.5, memory_mb: 180 },
+  {
+    pid: "2281",
+    name: "uvicorn",
+    cpu: 4,
+    ram: 1.5,
+    memory_mb: 180,
+    protected: true,
+    protection_reason: "proceso interno de Rocky",
+  },
   { pid: "1888", name: "firefox", cpu: 3, ram: 11.2, memory_mb: 1360 },
 ];
 

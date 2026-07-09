@@ -46,8 +46,9 @@ Funciona de punta a punta:
 - ✅ **Memoria persistente** — la conversación se guarda en SQLite
   (`~/.local/share/rocky/history.db`) y los últimos turnos se recargan al
   arrancar: reiniciar Rocky ya no es amnesia total.
-- ✅ **Resiliencia** — toda llamada a Groq lleva reintentos con backoff
-  exponencial (Tenacity) y degrada a fallback, nunca a crash.
+- ✅ **Resiliencia** — Groq reintenta fallos transitorios con backoff
+  exponencial (Tenacity); errores de autenticación se detectan como
+  configuración inválida, no se reintentan y degradan a fallback.
 - ✅ **Memoria y contexto real** — Rocky recuerda los últimos turnos de la
   sesión y recibe la telemetría actual: "¿cómo va el sistema?" se responde
   con los números reales.
@@ -56,7 +57,8 @@ Funciona de punta a punta:
   la herramienta determinista `system.top`.
 - ✅ **Acciones seguras sobre procesos** — desde la UI puedes copiar PID o
   terminar un proceso con confirmación explícita. Rocky bloquea PIDs críticos,
-  su propia app y el engine Python.
+  su propia app, el engine Python y procesos de sistema/escritorio marcados
+  como protegidos desde Rust.
 - ✅ **Diagnóstico accionable** — `system.diagnose` resume el cuello de botella
   actual y sugiere qué proceso revisar primero, sin depender del LLM.
 - ✅ **Avatar animado** — Rocky respira y parpadea en reposo, emite anillos
@@ -75,7 +77,7 @@ Tres procesos, un solo dueño de cada responsabilidad:
 │  · Genera ROCKY_AUTH_TOKEN (UUID) por arranque                   │
 │  · Lanza rocky-engine (uvicorn) como subproceso                  │
 │  · Lee CPU/RAM cada 1 s (sysinfo)                                │
-│  · Puente WebSocket ↔ Python con reconexión cada 5 s             │
+│  · Puente WebSocket ↔ Python con retry rápido al arrancar        │
 └──────────┬───────────────────────────────┬───────────────────────┘
    eventos Tauri                   WebSocket local dinámico
  (system-stats, system-alert,      (telemetría JSON + comandos +
@@ -125,14 +127,14 @@ tipados en TypeScript (`src/hooks/useRocky.ts`).
 | Dirección | Mensaje WS | Evento Tauri | Contenido |
 |---|---|---|---|
 | Rust → Python | `{cpu, ram}` | — | telemetría cada 1 s |
-| Rust → Python | `{top_cpu, top_ram}` | — | rankings opcionales de procesos con PID, CPU, RAM y memoria |
+| Rust → Python | `{top_cpu, top_ram}` | — | rankings opcionales de procesos con PID, CPU, RAM, memoria y protección |
 | Rust → Python | `{"action":"listen"}` | — | iniciar pipeline de voz |
 | Rust → Python | `{"action":"chat","text"}` | — | mensaje escrito por el usuario |
 | Python → Rust | `TelemetryAck` | — (no llega a UI) | `{status, cpu_received}` |
 | Python → Rust | `AlertEvent` | `system-alert` | `{type:"alert", level, resource, message}` |
 | Python → Rust | `ChatEvent` | `rocky-chat` | `{type:"chat", role, text, partial}` — `partial:true` = delta de streaming; el evento final trae el texto completo |
 | Python → Rust | `VoiceStateEvent` | `voice-state` | `{type:"voice", state, detail?}` |
-| Rust → UI | — | `system-stats` | `{cpu, ram, top_cpu?, top_ram?}` |
+| Rust → UI | — | `system-stats` | `{cpu, ram, top_cpu?, top_ram?}` con procesos protegidos marcados |
 
 ## Estructura del repositorio
 

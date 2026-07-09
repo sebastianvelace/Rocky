@@ -13,8 +13,9 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
   (llama-3.1-8b-instant, JSON mode, degradación a chat) +
   `core/tool_dispatcher.py` (registro `BaseTool`; `system.status` determinista
   con telemetría real).
-- **Resiliencia con Tenacity** — 3 reintentos con backoff exponencial en
-  todas las llamadas a Groq.
+- **Resiliencia con Tenacity** — reintentos con backoff exponencial en fallos
+  transitorios de Groq; errores de autenticación (`401`) se detectan como
+  configuración inválida, no se reintentan y degradan a fallback.
 - **Spotify** — `spotify.play` (busca y reproduce, o reanuda), `spotify.pause`
   y `spotify.next` con spotipy + OAuth cacheado; mensajes humanos sin
   credenciales o sin dispositivo activo.
@@ -33,7 +34,8 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
   `system.top` responde qué está consumiendo recursos con datos reales.
 - **Acciones seguras sobre procesos** — la UI permite copiar PID y terminar un
   proceso con confirmación, validando nombre/PID y bloqueando procesos de
-  Rocky.
+  Rocky, procesos internos y procesos de sistema/escritorio marcados desde
+  Rust.
 - **Diagnóstico accionable** — `system.diagnose` cruza CPU/RAM globales con
   procesos top y recomienda qué revisar primero sin llamar al LLM.
 
@@ -60,6 +62,11 @@ UI demo renderiza telemetría, consola y avatar sin solapamientos obvios.
 ### 4. Diagnóstico con historial
 Comparar procesos contra ventanas recientes para detectar outliers persistentes,
 no solo el pico del último segundo.
+
+### 5. Health/readiness del engine
+Agregar endpoint HTTP local `/health` o señal equivalente para que Tauri espere
+el arranque de Uvicorn antes de abrir el WebSocket y elimine por completo el
+retry inicial.
 
 ## Largo plazo / ideas
 

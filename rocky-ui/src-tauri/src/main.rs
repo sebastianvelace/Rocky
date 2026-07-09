@@ -209,7 +209,15 @@ async fn main() {
                 let mut system = sysinfo::System::new();
 
                 loop {
-                    let stats = telemetry::collect_stats(&mut system);
+                    let mut protected_pids = vec![std::process::id()];
+                    if let Some(engine_pid) = {
+                        let engine_state = app_handle.state::<RockyEngineProcess>();
+                        let guard = engine_state.0.lock().expect("engine mutex poisoned");
+                        guard.as_ref().map(|child| child.id())
+                    } {
+                        protected_pids.push(engine_pid);
+                    }
+                    let stats = telemetry::collect_stats(&mut system, &protected_pids);
 
                     if let Err(error) =
                         app_handle.emit(telemetry::SYSTEM_STATS_EVENT, stats.clone())

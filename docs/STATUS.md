@@ -1,10 +1,10 @@
 # Estado Operativo de Rocky
 
-Última inspección local: 2026-07-07.
+Última inspección local: 2026-07-08.
 
 ## Verificado
 
-- Engine Python: `46 passed` con `venv/bin/python -m pytest -vv`.
+- Engine Python: `56 passed` con `venv/bin/python -m pytest -q`.
 - Frontend: `npm run build` genera export estático correctamente.
 - TypeScript: `npm run lint` / `npm run typecheck` ejecutan `tsc --noEmit`.
 - Rust/Tauri: `cargo check` y `cargo test` pasan.
@@ -15,9 +15,13 @@
 - Telemetría avanzada: CPU/RAM globales más `top_cpu` y `top_ram` con procesos
   principales por consumo; visible en UI y disponible vía `system.top`.
 - Acciones de procesos: copiar PID y terminar proceso desde Tauri con
-  confirmación, validación de nombre/PID y protección para Rocky/engine.
+  confirmación, validación de nombre/PID y protección para Rocky/engine,
+  procesos de sistema/escritorio y procesos internos marcados desde Rust.
 - Diagnóstico determinista: `system.diagnose` identifica CPU/RAM como cuello de
   botella y recomienda qué proceso revisar primero.
+- Groq: los errores de autenticación (`401`, key inválida/sin permisos) no se
+  reintentan; Rocky deshabilita el cliente en memoria y degrada a fallback
+  sin saturar logs ni la API.
 
 ## Correcciones Aplicadas
 
@@ -30,6 +34,11 @@
 - `npm run lint` ya no llama `next lint`, removido/obsoleto en Next 16; ahora
   ejecuta el typecheck de TypeScript.
 - `tauri.conf.json` declara los íconos existentes.
+- Tauri usa `127.0.0.1:3000` y limpia `.next/dev` antes de arrancar Next en
+  modo desarrollo, evitando estado persistente contaminado de `localhost`.
+- El puente Rust→Python reintenta rápido durante el arranque del engine y no
+  registra como fallo crítico la primera conexión rechazada mientras Uvicorn
+  aún inicia.
 
 ## Cómo Correr
 
@@ -56,6 +65,8 @@ npm run tauri dev
 Secretos opcionales:
 
 - `GROQ_API_KEY`: habilita Llama/Whisper reales. Sin ella hay fallback.
+  Si ves `Groq deshabilitado: GROQ_API_KEY inválida o sin permisos`, reinicia
+  Rocky después de corregir la key.
 - `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REDIRECT_URI`.
 - `GOOGLE_APPLICATION_CREDENTIALS`.
 
@@ -64,5 +75,7 @@ Secretos opcionales:
 - Verificación visual automatizada de la UI demo/app.
 - Telemetría extendida: GPU, temperatura, disco y red.
 - Configuración editable desde la UI.
+- Health/readiness explícito del engine para sustituir el retry inicial por
+  una comprobación formal.
 - Wake word y modo tray.
 - Empaquetado instalable; no es prioridad mientras sea de uso personal.

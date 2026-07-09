@@ -5,10 +5,19 @@ import os
 from collections import deque
 from typing import Any, Final, Iterator
 
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from src.domain.models import SystemTelemetry
 from src.infrastructure.history_store import HistoryStore
+
+
+def _is_groq_auth_error(exc: BaseException) -> bool:
+    """Errores de credencial no deben reintentarse: son configuración, no red."""
+    status = getattr(exc, "status_code", None)
+    if status == 401:
+        return True
+    text = str(exc).lower()
+    return "401" in text and ("invalid api key" in text or "unauthorized" in text)
 
 
 class GroqClient:
@@ -27,6 +36,7 @@ class GroqClient:
         self._logger = logging.getLogger("rocky.groq")
         self._api_key = os.getenv("GROQ_API_KEY")
         self._client = None
+        self._disabled_reason: str | None = None
         # Memoria conversacional: la ventana viva va en RAM y cada turno se
         # persiste en SQLite; al arrancar se recargan los últimos turnos para
         # que reiniciar Rocky no sea amnesia total.
@@ -48,6 +58,7 @@ class GroqClient:
         except Exception as exc:
             self._logger.warning("Cliente Groq no disponible: %s", exc)
             self._client = None
+            self._disabled_reason = str(exc)
 
     def get_telemetry_advice(self, cpu: float, ram: float, resource: str = "cpu") -> str:
         """Consejo corto (máximo 15 palabras) para una alerta de telemetría."""
@@ -86,7 +97,7 @@ class GroqClient:
                 return " ".join(words[:15]).rstrip(".,;:!?")
             return content
         except Exception as exc:
-            self._logger.warning("Groq (telemetría) falló: %s", exc)
+            self._handle_groq_failure(exc, "telemetría")
             return self._FALLBACK
 
     @property
@@ -96,6 +107,7 @@ class GroqClient:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.5, max=4),
+        retry=retry_if_exception(lambda exc: not _is_groq_auth_error(exc)),
         reraise=True,
     )
     def _create_completion(self, **kwargs: Any) -> Any:
@@ -104,6 +116,18 @@ class GroqClient:
         tercer intento re-lanza y el llamador degrada a su fallback."""
         assert self._client is not None
         return self._client.chat.completions.create(**kwargs)
+
+    def _handle_groq_failure(self, exc: Exception, context: str) -> None:
+        if _is_groq_auth_error(exc):
+            if self._disabled_reason is None:
+                self._logger.error(
+                    "Groq deshabilitado: GROQ_API_KEY inválida o sin permisos (%s)",
+                    context,
+                )
+            self._disabled_reason = "GROQ_API_KEY inválida o sin permisos"
+            self._client = None
+            return
+        self._logger.warning("Groq (%s) falló: %s", context, exc)
 
     def get_intent_json(self, user_text: str, tools_prompt: str) -> str | None:
         """Clasifica el mensaje en una herramienta. Devuelve el JSON crudo
@@ -136,7 +160,7 @@ class GroqClient:
             )
             return (completion.choices[0].message.content or "").strip() or None
         except Exception as exc:
-            self._logger.warning("Groq (intent) falló: %s", exc)
+            self._handle_groq_failure(exc, "intent")
             return None
 
     def _build_chat_messages(
@@ -208,7 +232,7 @@ class GroqClient:
                     emitted.append(delta)
                     yield delta
         except Exception as exc:
-            self._logger.warning("Groq (chat stream) falló: %s", exc)
+            self._handle_groq_failure(exc, "chat stream")
             if not emitted:
                 yield self._FALLBACK
                 return

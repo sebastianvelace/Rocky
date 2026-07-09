@@ -26,6 +26,8 @@ class ProcessTelemetry(BaseModel):
     cpu: float
     ram: float
     memory_mb: float
+    protected: bool = False
+    protection_reason: str | None = None
 
     @field_validator("cpu", "ram", "memory_mb", mode="before")
     @classmethod

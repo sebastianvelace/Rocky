@@ -18,6 +18,8 @@ use url::Url;
 use crate::telemetry::SystemStats;
 
 const RECONNECT_SECS: u64 = 5;
+const STARTUP_RETRY_MS: u64 = 250;
+const STARTUP_FAST_RETRIES: u32 = 20;
 
 /// Handshake WebSocket correcto: `into_client_request()` rellena Upgrade, Connection,
 /// Sec-WebSocket-Key, Sec-WebSocket-Version, Host; luego añadimos el token Rocky.
@@ -46,6 +48,7 @@ pub fn spawn_python_telemetry_bridge(
     app_handle: AppHandle,
 ) {
     tokio::spawn(async move {
+        let mut failed_attempts: u32 = 0;
         loop {
             let request = match build_ws_request(&python_ws_url, &auth_token) {
                 Ok(r) => r,
@@ -58,6 +61,7 @@ pub fn spawn_python_telemetry_bridge(
 
             match connect_async(request).await {
                 Ok((ws, _response)) => {
+                    failed_attempts = 0;
                     eprintln!("[rocky-python-ws] connected to {python_ws_url}");
 
                     // Descartar la telemetría acumulada mientras estuvimos
@@ -157,11 +161,21 @@ pub fn spawn_python_telemetry_bridge(
                     }
                 }
                 Err(e) => {
-                    eprintln!("[rocky-python-ws] connect failed: {e}");
+                    failed_attempts = failed_attempts.saturating_add(1);
+                    if failed_attempts == 1 {
+                        eprintln!("[rocky-python-ws] esperando a rocky-engine...");
+                    } else if failed_attempts > STARTUP_FAST_RETRIES {
+                        eprintln!("[rocky-python-ws] reconnect failed: {e}");
+                    }
                 }
             }
 
-            sleep(Duration::from_secs(RECONNECT_SECS)).await;
+            let delay = if failed_attempts > 0 && failed_attempts <= STARTUP_FAST_RETRIES {
+                Duration::from_millis(STARTUP_RETRY_MS)
+            } else {
+                Duration::from_secs(RECONNECT_SECS)
+            };
+            sleep(delay).await;
         }
     });
 }

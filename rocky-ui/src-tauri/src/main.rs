@@ -41,6 +41,53 @@ fn send_chat(text: String, control: State<'_, PythonBridgeControl>) -> Result<()
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn terminate_process(
+    pid: String,
+    expected_name: String,
+    engine_state: State<'_, RockyEngineProcess>,
+) -> Result<String, String> {
+    let raw_pid: u32 = pid.parse().map_err(|_| format!("PID inválido: {pid}"))?;
+
+    if raw_pid <= 1 {
+        return Err("No voy a terminar procesos críticos del sistema.".to_string());
+    }
+    if raw_pid == std::process::id() {
+        return Err("No voy a terminar la propia app de Rocky.".to_string());
+    }
+
+    let engine_pid = {
+        let guard = engine_state.0.lock().expect("engine mutex poisoned");
+        guard.as_ref().map(|child| child.id())
+    };
+    if Some(raw_pid) == engine_pid {
+        return Err("No voy a terminar el engine de Rocky desde el panel.".to_string());
+    }
+
+    let target_pid = sysinfo::Pid::from_u32(raw_pid);
+    let mut system = sysinfo::System::new();
+    system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[target_pid]), true);
+
+    let process = system
+        .process(target_pid)
+        .ok_or_else(|| format!("El proceso {raw_pid} ya no existe."))?;
+    let current_name = process.name().to_string_lossy().into_owned();
+
+    if current_name != expected_name {
+        return Err(format!(
+            "El PID {raw_pid} ahora pertenece a '{current_name}', no a '{expected_name}'."
+        ));
+    }
+
+    if process.kill() {
+        Ok(format!("Proceso terminado: {current_name} ({raw_pid})."))
+    } else {
+        Err(format!(
+            "No pude terminar {current_name} ({raw_pid}). Revisa permisos o estado del proceso."
+        ))
+    }
+}
+
 fn reserve_local_port() -> std::io::Result<u16> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     Ok(listener.local_addr()?.port())
@@ -100,7 +147,11 @@ async fn main() {
                 })
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![request_listen, send_chat])
+        .invoke_handler(tauri::generate_handler![
+            request_listen,
+            send_chat,
+            terminate_process
+        ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
 

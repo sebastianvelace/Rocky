@@ -14,6 +14,8 @@
   Next usa el siguiente puerto libre, por ejemplo `3002`.
 - Telemetría avanzada: CPU/RAM globales más `top_cpu` y `top_ram` con procesos
   principales por consumo; visible en UI y disponible vía `system.top`.
+- Acciones de procesos: copiar PID y terminar proceso desde Tauri con
+  confirmación, validación de nombre/PID y protección para Rocky/engine.
 
 ## Correcciones Aplicadas
 

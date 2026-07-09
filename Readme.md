@@ -50,6 +50,9 @@ Funciona de punta a punta:
 - ✅ **Procesos top** — Rust envía rankings de procesos por CPU/RAM; la UI los
   muestra en vivo y Rocky puede responder "qué está consumiendo memoria" con
   la herramienta determinista `system.top`.
+- ✅ **Acciones seguras sobre procesos** — desde la UI puedes copiar PID o
+  terminar un proceso con confirmación explícita. Rocky bloquea PIDs críticos,
+  su propia app y el engine Python.
 - ✅ **Avatar animado** — Rocky respira y parpadea en reposo, emite anillos
   de sonar al escuchar, gira un anillo al pensar, mueve una boca ecualizador
   al hablar y se sacude en rojo ante una alerta. Todo SVG + CSS (respeta

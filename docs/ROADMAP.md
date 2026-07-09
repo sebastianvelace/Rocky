@@ -31,6 +31,9 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
   porque `next lint` ya no aplica en Next 16.
 - **Top de procesos** — Rust envía rankings por CPU/RAM, la UI los muestra y
   `system.top` responde qué está consumiendo recursos con datos reales.
+- **Acciones seguras sobre procesos** — la UI permite copiar PID y terminar un
+  proceso con confirmación, validando nombre/PID y bloqueando procesos de
+  Rocky.
 
 ## Corto plazo (siguiente iteración)
 
@@ -47,10 +50,10 @@ visibles/configurables sin editar archivos manualmente.
 Agregar una prueba de humo con Playwright para `npm run dev` que valide que la
 UI demo renderiza telemetría, consola y avatar sin solapamientos obvios.
 
-### 4. Acciones seguras sobre procesos
-Después de mostrar procesos top, el siguiente paso natural es permitir acciones
-con confirmación explícita: copiar PID, sugerir cierre o matar proceso solo si
-el usuario confirma.
+### 4. Diagnóstico accionable
+Convertir el ranking de procesos en recomendaciones: detectar outliers,
+comparar contra historial reciente y sugerir acciones antes de ofrecer cerrar
+un proceso.
 
 ## Largo plazo / ideas
 

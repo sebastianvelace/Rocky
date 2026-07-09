@@ -1,3 +1,7 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
 use serde::Serialize;
 use sysinfo::{Components, Disks, Networks, ProcessesToUpdate, System};
 
@@ -15,6 +19,9 @@ pub struct SystemStats {
     pub network_rx_kbps: f32,
     pub network_tx_kbps: f32,
     pub temperature_c: Option<f32>,
+    pub gpu_usage: Option<f32>,
+    pub gpu_vram_used_mb: Option<f32>,
+    pub gpu_vram_total_mb: Option<f32>,
     pub top_cpu: Vec<ProcessStats>,
     pub top_ram: Vec<ProcessStats>,
 }
@@ -30,11 +37,76 @@ pub struct ProcessStats {
     pub protection_reason: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct GpuStats {
+    usage: Option<f32>,
+    vram_used_mb: Option<f32>,
+    vram_total_mb: Option<f32>,
+}
+
+/// Lee sysfs cada dos segundos: no crea procesos ni depende de una GPU concreta.
+pub struct GpuProbe {
+    root: PathBuf,
+    last: Option<GpuStats>,
+    last_refresh: Option<Instant>,
+}
+
+impl GpuProbe {
+    pub fn new() -> Self {
+        Self::from_root(PathBuf::from("/sys/class/drm"))
+    }
+
+    fn from_root(root: PathBuf) -> Self {
+        Self {
+            root,
+            last: None,
+            last_refresh: None,
+        }
+    }
+
+    fn sample(&mut self) -> Option<GpuStats> {
+        if self
+            .last_refresh
+            .is_some_and(|instant| instant.elapsed() < Duration::from_secs(2))
+        {
+            return self.last;
+        }
+        self.last_refresh = Some(Instant::now());
+        self.last = fs::read_dir(&self.root)
+            .ok()?
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("card"))
+            .filter_map(|entry| read_gpu_stats(&entry.path().join("device")))
+            .next();
+        self.last
+    }
+}
+
+fn read_number<T: std::str::FromStr>(path: &Path) -> Option<T> {
+    fs::read_to_string(path).ok()?.trim().parse::<T>().ok()
+}
+
+fn read_gpu_stats(device: &Path) -> Option<GpuStats> {
+    let usage =
+        read_number::<f32>(&device.join("gpu_busy_percent")).map(|value| value.clamp(0.0, 100.0));
+    let used = read_number::<u64>(&device.join("mem_info_vram_used"));
+    let total = read_number::<u64>(&device.join("mem_info_vram_total"));
+    if usage.is_none() && used.is_none() && total.is_none() {
+        return None;
+    }
+    Some(GpuStats {
+        usage,
+        vram_used_mb: used.map(|value| value as f32 / 1_048_576.0),
+        vram_total_mb: total.map(|value| value as f32 / 1_048_576.0),
+    })
+}
+
 pub fn collect_stats(
     system: &mut System,
     disks: &mut Disks,
     networks: &mut Networks,
     components: &mut Components,
+    gpu: &mut GpuProbe,
     protected_pids: &[u32],
 ) -> SystemStats {
     // Un solo “paso” de refresco por ciclo: CPU (lista + métricas), memoria
@@ -82,6 +154,7 @@ pub fn collect_stats(
         .filter_map(|component| component.temperature())
         .filter(|temperature| temperature.is_finite())
         .max_by(|a, b| a.total_cmp(b));
+    let gpu_stats = gpu.sample();
 
     let num_cpus = system.cpus().len().max(1) as f32;
     let mut processes: Vec<ProcessStats> = system
@@ -126,6 +199,9 @@ pub fn collect_stats(
         network_rx_kbps: received as f32 / 1024.0,
         network_tx_kbps: transmitted as f32 / 1024.0,
         temperature_c,
+        gpu_usage: gpu_stats.and_then(|stats| stats.usage),
+        gpu_vram_used_mb: gpu_stats.and_then(|stats| stats.vram_used_mb),
+        gpu_vram_total_mb: gpu_stats.and_then(|stats| stats.vram_total_mb),
         top_cpu,
         top_ram: processes,
     }
@@ -167,7 +243,8 @@ pub fn classify_process_protection(pid: u32, name: &str, protected_pids: &[u32])
 
 #[cfg(test)]
 mod tests {
-    use super::classify_process_protection;
+    use super::{classify_process_protection, GpuProbe};
+    use std::fs;
 
     #[test]
     fn protects_system_and_rocky_processes() {
@@ -179,5 +256,22 @@ mod tests {
     #[test]
     fn leaves_regular_user_processes_actionable() {
         assert!(classify_process_protection(1234, "firefox", &[]).is_none());
+    }
+
+    #[test]
+    fn reads_gpu_metrics_when_driver_publishes_sysfs_files() {
+        let root = std::env::temp_dir().join(format!("rocky-gpu-test-{}", std::process::id()));
+        let device = root.join("card0/device");
+        fs::create_dir_all(&device).unwrap();
+        fs::write(device.join("gpu_busy_percent"), "72\n").unwrap();
+        fs::write(device.join("mem_info_vram_used"), "104857600\n").unwrap();
+        fs::write(device.join("mem_info_vram_total"), "209715200\n").unwrap();
+
+        let mut probe = GpuProbe::from_root(root.clone());
+        let stats = probe.sample().unwrap();
+        assert_eq!(stats.usage, Some(72.0));
+        assert_eq!(stats.vram_used_mb, Some(100.0));
+        assert_eq!(stats.vram_total_mb, Some(200.0));
+        fs::remove_dir_all(root).unwrap();
     }
 }

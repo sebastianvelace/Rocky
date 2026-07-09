@@ -63,7 +63,8 @@ Funciona de punta a punta:
   hace un follow-up con sus resultados. El presupuesto es `ROCKY_MAX_TOOL_CALLS`
   (3 por defecto, máximo 5) y la política de capacidades sigue siendo obligatoria.
 - ✅ **Telemetría de entorno** — el bridge incluye disco agregado, tráfico de
-  red por intervalo y temperatura máxima cuando el SO expone sensores; campos
+  red por intervalo, temperatura máxima y GPU/VRAM desde `sysfs` cuando el
+  driver lo publica; campos
   opcionales para que equipos sin sensores sigan funcionando.
 - ✅ **Resiliencia** — Groq reintenta fallos transitorios con backoff
   exponencial (Tenacity); errores de autenticación se detectan como

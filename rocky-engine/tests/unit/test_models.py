@@ -33,11 +33,16 @@ class TestSystemTelemetry:
                 "network_rx_kbps": 125,
                 "network_tx_kbps": 8,
                 "temperature_c": 57.5,
+                "gpu_usage": 30,
+                "gpu_vram_used_mb": 1200,
+                "gpu_vram_total_mb": 8192,
             }
         )
         assert telemetry.disk_used == 61.0
         assert telemetry.network_rx_kbps == 125.0
         assert telemetry.temperature_c == 57.5
+        assert telemetry.gpu_usage == 30.0
+        assert telemetry.gpu_vram_total_mb == 8192.0
 
     def test_accepts_process_rankings(self) -> None:
         t = SystemTelemetry.model_validate(

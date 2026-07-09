@@ -246,6 +246,7 @@ async fn main() {
                 let mut disks = sysinfo::Disks::new_with_refreshed_list();
                 let mut networks = sysinfo::Networks::new_with_refreshed_list();
                 let mut components = sysinfo::Components::new_with_refreshed_list();
+                let mut gpu = telemetry::GpuProbe::new();
 
                 loop {
                     let mut protected_pids = vec![std::process::id()];
@@ -261,6 +262,7 @@ async fn main() {
                         &mut disks,
                         &mut networks,
                         &mut components,
+                        &mut gpu,
                         &protected_pids,
                     );
 

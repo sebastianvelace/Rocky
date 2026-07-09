@@ -35,6 +35,9 @@ export type SystemStats = {
   network_rx_kbps?: number;
   network_tx_kbps?: number;
   temperature_c?: number | null;
+  gpu_usage?: number | null;
+  gpu_vram_used_mb?: number | null;
+  gpu_vram_total_mb?: number | null;
   top_cpu?: ProcessStats[];
   top_ram?: ProcessStats[];
 };
@@ -165,7 +168,7 @@ export function useRocky() {
       const tick = () => {
         cpu = Math.min(98, Math.max(2, cpu + (Math.random() - 0.5) * 14));
         ram = Math.min(98, Math.max(10, ram + (Math.random() - 0.5) * 4));
-        const payload = { cpu, ram, disk_used: 42, network_rx_kbps: 120 + Math.random() * 40, network_tx_kbps: 18 + Math.random() * 8, temperature_c: 54 + Math.random() * 3, ...demoProcesses(cpu, ram) };
+        const payload = { cpu, ram, disk_used: 42, network_rx_kbps: 120 + Math.random() * 40, network_tx_kbps: 18 + Math.random() * 8, temperature_c: 54 + Math.random() * 3, gpu_usage: 31 + Math.random() * 10, gpu_vram_used_mb: 1840 + Math.random() * 80, gpu_vram_total_mb: 8192, ...demoProcesses(cpu, ram) };
         setStats(payload);
         setCpuHistory((prev) => [...prev, payload.cpu].slice(-HISTORY_LENGTH));
         setRamHistory((prev) => [...prev, payload.ram].slice(-HISTORY_LENGTH));

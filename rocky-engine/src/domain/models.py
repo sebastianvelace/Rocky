@@ -49,6 +49,9 @@ class SystemTelemetry(BaseModel):
     network_rx_kbps: float = 0.0
     network_tx_kbps: float = 0.0
     temperature_c: float | None = None
+    gpu_usage: float | None = None
+    gpu_vram_used_mb: float | None = None
+    gpu_vram_total_mb: float | None = None
     top_cpu: list[ProcessTelemetry] = Field(default_factory=list)
     top_ram: list[ProcessTelemetry] = Field(default_factory=list)
 
@@ -56,6 +59,11 @@ class SystemTelemetry(BaseModel):
     @classmethod
     def coerce_json_number_to_float(cls, v: Any) -> float:
         return _coerce_json_number(v)
+
+    @field_validator("temperature_c", "gpu_usage", "gpu_vram_used_mb", "gpu_vram_total_mb", mode="before")
+    @classmethod
+    def coerce_optional_json_number_to_float(cls, v: Any) -> float | None:
+        return None if v is None else _coerce_json_number(v)
 
 
 class TelemetryAck(BaseModel):

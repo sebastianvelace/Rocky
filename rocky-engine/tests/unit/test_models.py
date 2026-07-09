@@ -24,6 +24,21 @@ class TestSystemTelemetry:
         assert t.cpu == 12.0
         assert isinstance(t.cpu, float)
 
+    def test_accepts_extended_optional_metrics(self) -> None:
+        telemetry = SystemTelemetry.model_validate(
+            {
+                "cpu": 12,
+                "ram": 40,
+                "disk_used": 61,
+                "network_rx_kbps": 125,
+                "network_tx_kbps": 8,
+                "temperature_c": 57.5,
+            }
+        )
+        assert telemetry.disk_used == 61.0
+        assert telemetry.network_rx_kbps == 125.0
+        assert telemetry.temperature_c == 57.5
+
     def test_accepts_process_rankings(self) -> None:
         t = SystemTelemetry.model_validate(
             {

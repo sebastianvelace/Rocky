@@ -15,6 +15,12 @@ from src.domain.models import SystemTelemetry
 class WebResearchTool(BaseTool):
     name = "web.search"
     capability = "web.research"
+    parameters = {
+        "type": "object",
+        "properties": {"query": {"type": "string", "description": "Consulta concreta de investigación."}},
+        "required": ["query"],
+        "additionalProperties": False,
+    }
     description = "web.search: investiga información actual en Internet, busca fuentes web o noticias. args: {query}."
 
     async def run(self, args: dict[str, Any], telemetry: SystemTelemetry | None) -> str:

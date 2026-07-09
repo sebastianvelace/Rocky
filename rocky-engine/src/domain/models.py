@@ -45,10 +45,14 @@ class SystemTelemetry(BaseModel):
 
     cpu: float
     ram: float
+    disk_used: float = 0.0
+    network_rx_kbps: float = 0.0
+    network_tx_kbps: float = 0.0
+    temperature_c: float | None = None
     top_cpu: list[ProcessTelemetry] = Field(default_factory=list)
     top_ram: list[ProcessTelemetry] = Field(default_factory=list)
 
-    @field_validator("cpu", "ram", mode="before")
+    @field_validator("cpu", "ram", "disk_used", "network_rx_kbps", "network_tx_kbps", mode="before")
     @classmethod
     def coerce_json_number_to_float(cls, v: Any) -> float:
         return _coerce_json_number(v)

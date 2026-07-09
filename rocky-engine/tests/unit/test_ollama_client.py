@@ -36,3 +36,25 @@ def test_lists_models_loaded_in_memory(monkeypatch) -> None:
     monkeypatch.setattr("src.infrastructure.clients.ollama_client.urlopen", fake_urlopen)
     running = OllamaClient().list_running_models()
     assert running[0]["context_length"] == 8192
+
+
+def test_tool_plan_returns_only_model_declared_calls(monkeypatch) -> None:
+    payload = {
+        "message": {
+            "role": "assistant",
+            "tool_calls": [{"function": {"name": "system.status", "arguments": {}}}],
+        }
+    }
+    monkeypatch.setattr(
+        "src.infrastructure.clients.ollama_client.urlopen",
+        lambda *_args, **_kwargs: FakeResponse(json.dumps(payload).encode()),
+    )
+    client = OllamaClient()
+    client._model = "qwen3:8b"
+    plan = client.plan_tool_calls(
+        "cómo va el sistema",
+        None,
+        [{"type": "function", "function": {"name": "system.status", "parameters": {}}}],
+    )
+    assert plan is not None
+    assert plan["calls"][0]["function"]["name"] == "system.status"

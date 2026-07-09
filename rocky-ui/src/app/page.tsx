@@ -4,6 +4,7 @@ import { Cpu, MemoryStick } from "lucide-react";
 import { AlertBanner } from "../components/AlertBanner";
 import { ModelSwitcher } from "../components/ModelSwitcher";
 import { ProcessRank } from "../components/ProcessRank";
+import { ResourceStrip } from "../components/ResourceStrip";
 import { StatGauge } from "../components/StatGauge";
 import { VoiceConsole } from "../components/VoiceConsole";
 import { useRocky } from "../hooks/useRocky";
@@ -81,6 +82,8 @@ export default function Page() {
           threshold={RAM_THRESHOLD}
         />
       </div>
+
+      <div className="mt-7"><ResourceStrip stats={stats} /></div>
 
       <div className="mt-8"><ProcessRank topCpu={stats.top_cpu} topRam={stats.top_ram} /></div>
 

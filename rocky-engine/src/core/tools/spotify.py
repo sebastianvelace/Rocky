@@ -17,6 +17,11 @@ from src.infrastructure.clients.spotify_client import SpotifyClient
 class SpotifyPlayTool(BaseTool):
     name = "spotify.play"
     capability = "spotify.control"
+    parameters = {
+        "type": "object",
+        "properties": {"query": {"type": "string", "description": "Canción, artista o playlist."}},
+        "additionalProperties": False,
+    }
     description = (
         "spotify.play: el usuario pide reproducir música, poner una canción, "
         "artista o playlist, o reanudar la reproducción. args: {\"query\": "

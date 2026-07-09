@@ -46,6 +46,10 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
   funcionan aunque Groq no esté configurado.
 - **Límites de memoria** — `watch` conserva solo el último snapshot de
   telemetría, la cola de comandos es finita y el streaming tiene backpressure.
+- **Tool calling nativo de Ollama** — ciclo de herramientas tipado, con
+  presupuesto de 1-5 llamadas, resultados truncados y política obligatoria.
+- **Telemetría ampliada** — disco, red y sensores térmicos cuando el hardware
+  los expone; los campos son opcionales para mantener compatibilidad.
 
 - **Contexto de procesos** — Rust envía rankings por CPU/RAM con PID, CPU
   normalizada por núcleos y memoria; `system.top` y `system.diagnose` usan
@@ -55,10 +59,9 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
 ## Corto plazo (siguiente iteración)
 
 ### 1. Bucle de herramientas verificable
-Adoptar tool calling nativo de Ollama para encadenar varias herramientas con
-presupuesto de pasos, esquema JSON validado y un registro de decisiones. La
-política debe seguir siendo de mínimo privilegio: capacidades declaradas,
-resultados truncados y aprobación humana para toda futura operación mutante.
+Añadir aprobaciones humanas por llamada para futuras operaciones mutantes y un
+registro persistente de decisiones. El ciclo actual ya valida schemas, aplica
+capacidades, limita pasos y trunca resultados.
 
 ### 2. Más telemetría
 Temperaturas, GPU (nvml), disco y red. El contrato `SystemTelemetry` crece con

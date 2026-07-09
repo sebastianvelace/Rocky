@@ -35,6 +35,16 @@ class ModelRouter:
     def stream_conversational_reply(self, user_text: str, telemetry: SystemTelemetry | None = None) -> Iterator[str]:
         return self._active.stream_conversational_reply(user_text, telemetry)
 
+    def plan_tool_calls(
+        self, user_text: str, telemetry: SystemTelemetry | None, tools: list[dict[str, object]]
+    ) -> dict[str, Any] | None:
+        if self._provider != "ollama":
+            return None
+        return self._ollama.plan_tool_calls(user_text, telemetry, tools)
+
+    def stream_tool_followup(self, plan: dict[str, Any], results: list[dict[str, str]]) -> Iterator[str]:
+        return self._ollama.stream_tool_followup(plan, results)
+
     def status(self) -> dict[str, Any]:
         models = self._ollama.list_models()
         running = {entry["name"]: entry for entry in self._ollama.list_running_models()}

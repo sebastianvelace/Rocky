@@ -50,6 +50,28 @@ class ToolDispatcher:
         lines.append("- chat: conversación general, cualquier otra cosa.")
         return "\n".join(lines)
 
+    @property
+    def tool_definitions(self) -> list[dict[str, object]]:
+        """Esquemas JSON para providers con tool calling nativo."""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,
+                },
+            }
+            for tool in self._tools.values()
+        ]
+
+    async def dispatch_call(
+        self, name: str, args: dict[str, object], telemetry: SystemTelemetry | None
+    ) -> str:
+        """Puerta única para llamadas nativas: mismo registro y política."""
+        result = await self.dispatch(Intent(tool=name, args=args), telemetry)
+        return result or "Herramienta no disponible."
+
     async def dispatch(
         self, intent: Intent, telemetry: SystemTelemetry | None
     ) -> str | None:

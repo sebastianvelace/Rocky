@@ -1,5 +1,5 @@
 use serde::Serialize;
-use sysinfo::{ProcessesToUpdate, System};
+use sysinfo::{Components, Disks, Networks, ProcessesToUpdate, System};
 
 /// Nombre del evento Tauri hacia el frontend. Debe coincidir exactamente con el `listen(...)` en Next.
 pub const SYSTEM_STATS_EVENT: &str = "system-stats";
@@ -11,6 +11,10 @@ pub const TOP_PROCESS_COUNT: usize = 5;
 pub struct SystemStats {
     pub cpu: f32,
     pub ram: f32,
+    pub disk_used: f32,
+    pub network_rx_kbps: f32,
+    pub network_tx_kbps: f32,
+    pub temperature_c: Option<f32>,
     pub top_cpu: Vec<ProcessStats>,
     pub top_ram: Vec<ProcessStats>,
 }
@@ -26,13 +30,22 @@ pub struct ProcessStats {
     pub protection_reason: Option<String>,
 }
 
-pub fn collect_stats(system: &mut System, protected_pids: &[u32]) -> SystemStats {
+pub fn collect_stats(
+    system: &mut System,
+    disks: &mut Disks,
+    networks: &mut Networks,
+    components: &mut Components,
+    protected_pids: &[u32],
+) -> SystemStats {
     // Un solo “paso” de refresco por ciclo: CPU (lista + métricas), memoria
     // y procesos. `System::new()` arranca sin CPUs cargadas;
     // `refresh_cpu_usage()` solo no basta.
     system.refresh_cpu_all();
     system.refresh_memory();
     system.refresh_processes(ProcessesToUpdate::All, true);
+    disks.refresh(false);
+    networks.refresh(false);
+    components.refresh(false);
 
     let cpu = system.global_cpu_usage().clamp(0.0, 100.0);
     let total_memory = system.total_memory();
@@ -44,6 +57,31 @@ pub fn collect_stats(system: &mut System, protected_pids: &[u32]) -> SystemStats
         ((used_memory as f64 / total_memory as f64) * 100.0) as f32
     }
     .clamp(0.0, 100.0);
+
+    let (total_disk, available_disk) = disks.iter().fold((0_u64, 0_u64), |acc, disk| {
+        (
+            acc.0.saturating_add(disk.total_space()),
+            acc.1.saturating_add(disk.available_space()),
+        )
+    });
+    let disk_used = if total_disk == 0 {
+        0.0
+    } else {
+        (100.0 - (available_disk as f64 / total_disk as f64) * 100.0) as f32
+    }
+    .clamp(0.0, 100.0);
+
+    let (received, transmitted) = networks.values().fold((0_u64, 0_u64), |acc, network| {
+        (
+            acc.0.saturating_add(network.received()),
+            acc.1.saturating_add(network.transmitted()),
+        )
+    });
+    let temperature_c = components
+        .iter()
+        .filter_map(|component| component.temperature())
+        .filter(|temperature| temperature.is_finite())
+        .max_by(|a, b| a.total_cmp(b));
 
     let num_cpus = system.cpus().len().max(1) as f32;
     let mut processes: Vec<ProcessStats> = system
@@ -84,6 +122,10 @@ pub fn collect_stats(system: &mut System, protected_pids: &[u32]) -> SystemStats
     SystemStats {
         cpu,
         ram,
+        disk_used,
+        network_rx_kbps: received as f32 / 1024.0,
+        network_tx_kbps: transmitted as f32 / 1024.0,
+        temperature_c,
         top_cpu,
         top_ram: processes,
     }

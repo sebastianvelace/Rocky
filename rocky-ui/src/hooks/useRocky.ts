@@ -31,6 +31,10 @@ export type ProcessStats = {
 export type SystemStats = {
   cpu: number;
   ram: number;
+  disk_used?: number;
+  network_rx_kbps?: number;
+  network_tx_kbps?: number;
+  temperature_c?: number | null;
   top_cpu?: ProcessStats[];
   top_ram?: ProcessStats[];
 };
@@ -139,7 +143,7 @@ function isTauri(): boolean {
 export function useRocky() {
   const [connected, setConnected] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
-  const [stats, setStats] = useState<SystemStats>({ cpu: 0, ram: 0 });
+  const [stats, setStats] = useState<SystemStats>({ cpu: 0, ram: 0, disk_used: 0, network_rx_kbps: 0, network_tx_kbps: 0 });
   const [cpuHistory, setCpuHistory] = useState<number[]>([]);
   const [ramHistory, setRamHistory] = useState<number[]>([]);
   const [alert, setAlert] = useState<SystemAlert | null>(null);
@@ -161,7 +165,7 @@ export function useRocky() {
       const tick = () => {
         cpu = Math.min(98, Math.max(2, cpu + (Math.random() - 0.5) * 14));
         ram = Math.min(98, Math.max(10, ram + (Math.random() - 0.5) * 4));
-        const payload = { cpu, ram, ...demoProcesses(cpu, ram) };
+        const payload = { cpu, ram, disk_used: 42, network_rx_kbps: 120 + Math.random() * 40, network_tx_kbps: 18 + Math.random() * 8, temperature_c: 54 + Math.random() * 3, ...demoProcesses(cpu, ram) };
         setStats(payload);
         setCpuHistory((prev) => [...prev, payload.cpu].slice(-HISTORY_LENGTH));
         setRamHistory((prev) => [...prev, payload.ram].slice(-HISTORY_LENGTH));

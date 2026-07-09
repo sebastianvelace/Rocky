@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from typing import Any
 
@@ -35,6 +36,15 @@ from src.infrastructure.clients.groq_client import GroqClient
 # Cooldown para no pedir consejo a Groq (ni hablar) en cada tick mientras
 # la sobrecarga sigue activa.
 AI_COOLDOWN_SECONDS = 60.0
+MAX_TOOL_CALLS = 3
+
+
+def _tool_call_budget() -> int:
+    raw = os.getenv("ROCKY_MAX_TOOL_CALLS", str(MAX_TOOL_CALLS))
+    try:
+        return min(5, max(1, int(raw)))
+    except ValueError:
+        return MAX_TOOL_CALLS
 
 
 class RockyOrchestrator:
@@ -184,6 +194,12 @@ class RockyOrchestrator:
     async def _respond(self, websocket: WebSocket, text: str) -> str:
         """Parsea la intención y responde: herramienta determinista si aplica,
         conversación libre (streaming) en cualquier otro caso."""
+        if hasattr(self._groq, "plan_tool_calls"):
+            plan = await asyncio.to_thread(
+                self._groq.plan_tool_calls, text, self._last_telemetry, self._dispatcher.tool_definitions
+            )
+            if plan is not None:
+                return await self._run_tool_plan(websocket, plan)
         intent = await asyncio.to_thread(self._parser.parse, text)
         tool_result = await self._dispatcher.dispatch(intent, self._last_telemetry)
         if tool_result is not None:
@@ -203,6 +219,35 @@ class RockyOrchestrator:
             return tool_result
         return await self._stream_reply(websocket, text)
 
+    async def _run_tool_plan(self, websocket: WebSocket, plan: dict[str, Any]) -> str:
+        """Ejecuta como máximo tres herramientas declaradas y hace follow-up."""
+        results: list[dict[str, str]] = []
+        for call in plan.get("calls", [])[:_tool_call_budget()]:
+            function = call.get("function") if isinstance(call, dict) else None
+            name = function.get("name") if isinstance(function, dict) else None
+            raw_args = function.get("arguments", {}) if isinstance(function, dict) else {}
+            args = raw_args if isinstance(raw_args, dict) else {}
+            if not isinstance(name, str):
+                continue
+            result = await self._dispatcher.dispatch_call(name, args, self._last_telemetry)
+            execution = self._dispatcher.last_execution
+            if execution is not None:
+                await self._send(
+                    websocket,
+                    ToolActivityEvent(
+                        tool=execution.tool,
+                        capability=execution.capability,
+                        status=execution.status,  # type: ignore[arg-type]
+                        duration_ms=execution.duration_ms,
+                        detail=execution.detail,
+                    ),
+                )
+            # No reenviar resultados enormes ni instrucciones arbitrarias al modelo.
+            results.append({"role": "tool", "tool_name": name, "content": result[:6_000]})
+        if not results:
+            return await self._stream_reply(websocket, str(plan.get("prompt", "")))
+        return await self._stream_iterator(websocket, self._groq.stream_tool_followup(plan, results))
+
     async def _stream_reply(self, websocket: WebSocket, text: str) -> str:
         """Streaming del LLM → deltas `ChatEvent(partial=True)` → texto final.
 
@@ -211,6 +256,11 @@ class RockyOrchestrator:
         """
         # Backpressure real: si la UI/socket se ralentiza, el hilo productor
         # espera en vez de acumular una respuesta larga completa en RAM.
+        return await self._stream_iterator(
+            websocket, self._groq.stream_conversational_reply(text, self._telemetry_context())
+        )
+
+    async def _stream_iterator(self, websocket: WebSocket, deltas: Any) -> str:
         queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=32)
         loop = asyncio.get_running_loop()
 
@@ -228,9 +278,7 @@ class RockyOrchestrator:
 
         def producer() -> None:
             try:
-                for delta in self._groq.stream_conversational_reply(
-                    text, self._telemetry_context()
-                ):
+                for delta in deltas:
                     enqueue(delta)
             finally:
                 enqueue(None)

@@ -58,6 +58,13 @@ Funciona de punta a punta:
 - ✅ **Readiness y trazabilidad** — Tauri espera `GET /health` antes de abrir
   el puente normal; cada herramienta emite su capacidad, resultado y duración
   hacia la UI sin incluir argumentos potencialmente sensibles.
+- ✅ **Tool calling local acotado** — con Ollama, Rocky permite que el modelo
+  solicite herramientas mediante schemas JSON, ejecuta solo las registradas y
+  hace un follow-up con sus resultados. El presupuesto es `ROCKY_MAX_TOOL_CALLS`
+  (3 por defecto, máximo 5) y la política de capacidades sigue siendo obligatoria.
+- ✅ **Telemetría de entorno** — el bridge incluye disco agregado, tráfico de
+  red por intervalo y temperatura máxima cuando el SO expone sensores; campos
+  opcionales para que equipos sin sensores sigan funcionando.
 - ✅ **Resiliencia** — Groq reintenta fallos transitorios con backoff
   exponencial (Tenacity); errores de autenticación se detectan como
   configuración inválida, no se reintentan y degradan a fallback.
@@ -138,7 +145,7 @@ tipados en TypeScript (`src/hooks/useRocky.ts`).
 
 | Dirección | Mensaje WS | Evento Tauri | Contenido |
 |---|---|---|---|
-| Rust → Python | `{cpu, ram}` | — | telemetría cada 1 s |
+| Rust → Python | `{cpu, ram, disk_used?, network_*?, temperature_c?}` | — | telemetría cada 1 s |
 | Rust → Python | `{top_cpu, top_ram}` | — | rankings opcionales de procesos con PID, CPU, RAM, memoria y protección |
 | Rust → Python | `{"action":"listen"}` | — | iniciar pipeline de voz |
 | Rust → Python | `{"action":"chat","text"}` | — | mensaje escrito por el usuario |

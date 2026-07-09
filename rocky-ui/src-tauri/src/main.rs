@@ -243,6 +243,9 @@ async fn main() {
             // Loop de telemetría: UI (Tauri) + mismo JSON hacia Python (WebSocket)
             tokio::spawn(async move {
                 let mut system = sysinfo::System::new();
+                let mut disks = sysinfo::Disks::new_with_refreshed_list();
+                let mut networks = sysinfo::Networks::new_with_refreshed_list();
+                let mut components = sysinfo::Components::new_with_refreshed_list();
 
                 loop {
                     let mut protected_pids = vec![std::process::id()];
@@ -253,7 +256,13 @@ async fn main() {
                     } {
                         protected_pids.push(engine_pid);
                     }
-                    let stats = telemetry::collect_stats(&mut system, &protected_pids);
+                    let stats = telemetry::collect_stats(
+                        &mut system,
+                        &mut disks,
+                        &mut networks,
+                        &mut components,
+                        &protected_pids,
+                    );
 
                     if let Err(error) =
                         app_handle.emit(telemetry::SYSTEM_STATS_EVENT, stats.clone())

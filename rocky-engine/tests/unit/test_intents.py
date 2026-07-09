@@ -130,6 +130,11 @@ class TestToolDispatcher:
         assert "system.diagnose" in prompt
         assert "chat" in prompt
 
+    def test_tool_definitions_expose_only_declared_schema(self) -> None:
+        definitions = ToolDispatcher().tool_definitions
+        status = next(item for item in definitions if item["function"]["name"] == "system.status")
+        assert status["function"]["parameters"]["additionalProperties"] is False
+
     @pytest.mark.asyncio
     async def test_denied_capability_never_runs_tool(self, monkeypatch: pytest.MonkeyPatch) -> None:
         class ExternalTool(BaseTool):

@@ -7,6 +7,7 @@ from typing import Any, Final, Iterator
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from src.domain.models import SystemTelemetry
 from src.infrastructure.history_store import HistoryStore
 
 
@@ -139,7 +140,7 @@ class GroqClient:
             return None
 
     def _build_chat_messages(
-        self, prompt: str, telemetry: tuple[float, float] | None
+        self, prompt: str, telemetry: SystemTelemetry | None
     ) -> list[dict[str, str]]:
         system = (
             "Eres Rocky, un asistente de ingeniería aeroespacial y software. "
@@ -147,11 +148,23 @@ class GroqClient:
             "Responde en español, conciso (1-2 frases). El usuario se llama Sebas."
         )
         if telemetry is not None:
-            cpu, ram = telemetry
             system += (
-                f" Telemetría actual del equipo: CPU {cpu:.0f}%, RAM {ram:.0f}%. "
-                "Úsala solo si es relevante para la pregunta."
+                f" Telemetría actual del equipo: CPU {telemetry.cpu:.0f}%, "
+                f"RAM {telemetry.ram:.0f}%."
             )
+            if telemetry.top_cpu:
+                top_cpu = ", ".join(
+                    f"{p.name} pid {p.pid} ({p.cpu:.0f}% CPU)"
+                    for p in telemetry.top_cpu[:3]
+                )
+                system += f" Top CPU: {top_cpu}."
+            if telemetry.top_ram:
+                top_ram = ", ".join(
+                    f"{p.name} pid {p.pid} ({p.memory_mb:.0f} MB, {p.ram:.0f}% RAM)"
+                    for p in telemetry.top_ram[:3]
+                )
+                system += f" Top RAM: {top_ram}."
+            system += " Úsala solo si es relevante para la pregunta."
         return [
             {"role": "system", "content": system},
             *self._history,
@@ -166,7 +179,7 @@ class GroqClient:
             self._store.append("assistant", reply)
 
     def stream_conversational_reply(
-        self, user_text: str, telemetry: tuple[float, float] | None = None
+        self, user_text: str, telemetry: SystemTelemetry | None = None
     ) -> "Iterator[str]":
         """Respuesta conversacional en streaming (deltas de texto).
 
@@ -205,7 +218,7 @@ class GroqClient:
                 self._remember_turn(prompt, full)
 
     def get_conversational_reply(
-        self, user_text: str, telemetry: tuple[float, float] | None = None
+        self, user_text: str, telemetry: SystemTelemetry | None = None
     ) -> str:
         """Versión no-streaming: acumula el stream y devuelve el texto completo."""
         parts = list(self.stream_conversational_reply(user_text, telemetry))

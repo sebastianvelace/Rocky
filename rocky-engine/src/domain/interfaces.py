@@ -23,4 +23,8 @@ class BaseTool(ABC):
     async def run(
         self, args: dict[str, Any], telemetry: SystemTelemetry | None
     ) -> str:
-        """Ejecuta la herramienta y devuelve el texto de respuesta para el usuario."""
+        """Ejecuta la herramienta y devuelve el texto de respuesta para el usuario.
+
+        `telemetry` es el último snapshot completo (cpu, ram, top de
+        procesos) o None si aún no llegó ninguno.
+        """

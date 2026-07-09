@@ -1,4 +1,4 @@
-"""Herramientas de estado del sistema."""
+"""Herramientas de estado del sistema. Deterministas: cero LLM, cero red."""
 
 from __future__ import annotations
 
@@ -9,8 +9,7 @@ from src.domain.models import ProcessTelemetry, SystemTelemetry
 
 
 class SystemStatusTool(BaseTool):
-    """Estado del sistema con los datos reales de telemetría. Determinista:
-    cero LLM, cero red — responde aunque Groq esté caído."""
+    """Estado global (CPU/RAM) con los datos reales de telemetría."""
 
     name = "system.status"
     description = (

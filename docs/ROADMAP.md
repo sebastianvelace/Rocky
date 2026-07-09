@@ -37,6 +37,11 @@ valor/esfuerzo, con notas de diseño para cuando se aborden.
 - **Diagnóstico accionable** — `system.diagnose` cruza CPU/RAM globales con
   procesos top y recomienda qué revisar primero sin llamar al LLM.
 
+- **Contexto de procesos** — Rust envía rankings por CPU/RAM con PID, CPU
+  normalizada por núcleos y memoria; `system.top` y `system.diagnose` usan
+  esa telemetría; el chat libre recibe los procesos más pesados en contexto;
+  la UI permite copiar PID y terminar procesos con validación nombre/PID.
+
 ## Corto plazo (siguiente iteración)
 
 ### 1. Más telemetría

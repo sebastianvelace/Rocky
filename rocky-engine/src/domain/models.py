@@ -7,6 +7,15 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+def _coerce_json_number(v: Any) -> float:
+    # `serde_json` puede emitir enteros para valores enteros; strict=True no coacciona int→float.
+    if isinstance(v, bool):
+        raise ValueError("boolean is not a valid numeric telemetry value")
+    if isinstance(v, int | float):
+        return float(v)
+    raise ValueError("expected int or float")
+
+
 class ProcessTelemetry(BaseModel):
     """Proceso observado por Rust/sysinfo en los rankings de consumo."""
 
@@ -21,15 +30,14 @@ class ProcessTelemetry(BaseModel):
     @field_validator("cpu", "ram", "memory_mb", mode="before")
     @classmethod
     def coerce_json_number_to_float(cls, v: Any) -> float:
-        if isinstance(v, bool):
-            raise ValueError("boolean is not a valid numeric process value")
-        if isinstance(v, int | float):
-            return float(v)
-        raise ValueError("expected int or float")
+        return _coerce_json_number(v)
 
 
 class SystemTelemetry(BaseModel):
-    """Contrato del JSON de telemetría enviado por Rust (`{cpu, ram}`)."""
+    """Contrato del JSON de telemetría enviado por Rust.
+
+    Los rankings son opcionales (default vacío) para tolerar emisores antiguos.
+    """
 
     model_config = ConfigDict(strict=True, extra="forbid")
 
@@ -41,12 +49,7 @@ class SystemTelemetry(BaseModel):
     @field_validator("cpu", "ram", mode="before")
     @classmethod
     def coerce_json_number_to_float(cls, v: Any) -> float:
-        # `serde_json` puede emitir enteros para valores enteros; strict=True no coacciona int→float.
-        if isinstance(v, bool):
-            raise ValueError("boolean is not a valid numeric telemetry value")
-        if isinstance(v, int | float):
-            return float(v)
-        raise ValueError("expected int or float")
+        return _coerce_json_number(v)
 
 
 class TelemetryAck(BaseModel):

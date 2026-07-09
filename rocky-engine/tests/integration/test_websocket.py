@@ -36,7 +36,7 @@ class FakeGroqClient:
         return None
 
     def stream_conversational_reply(
-        self, user_text: str, telemetry: tuple[float, float] | None = None
+        self, user_text: str, telemetry: Any | None = None
     ) -> list[str]:
         return ["Respuesta ", "de prueba."]
 
@@ -283,11 +283,26 @@ class TestChatFlow:
             assert ack["status"] == "ok"
 
     async def test_chat_uses_latest_telemetry_as_context(self) -> None:
-        """El orquestador cachea el último (cpu, ram) para dárselo al LLM."""
+        """El orquestador cachea el último snapshot para dárselo al LLM."""
         app, orchestrator = build_app()
         async with ws_session(app, AUTH_HEADERS) as ws:
-            await ws.send_json({"cpu": 42.0, "ram": 33.0})
+            await ws.send_json(
+                {
+                    "cpu": 42.0,
+                    "ram": 33.0,
+                    "top_cpu": [
+                        {
+                            "pid": "123",
+                            "name": "cargo",
+                            "cpu": 30,
+                            "ram": 2,
+                            "memory_mb": 512,
+                        }
+                    ],
+                }
+            )
             await ws.receive_json()  # ack
         assert orchestrator._last_telemetry is not None
         assert orchestrator._last_telemetry.cpu == 42.0
         assert orchestrator._last_telemetry.ram == 33.0
+        assert orchestrator._last_telemetry.top_cpu[0].name == "cargo"

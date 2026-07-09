@@ -55,8 +55,8 @@ class RockyOrchestrator:
         )
         self._ai_cooldown_seconds = ai_cooldown_seconds
         self._last_ai_alert_time = 0.0
-        # Última telemetría validada: se usa en herramientas deterministas y
-        # como contexto compacto (cpu/ram) para el chat.
+        # Último snapshot completo (cpu, ram, top de procesos): contexto para
+        # las herramientas y para el LLM.
         self._last_telemetry: SystemTelemetry | None = None
         # Un solo pipeline interactivo (voz o chat) a la vez.
         self._active_task: asyncio.Task[None] | None = None
@@ -186,10 +186,8 @@ class RockyOrchestrator:
         await self._send(websocket, ChatEvent(role="rocky", text=full))
         return full
 
-    def _telemetry_context(self) -> tuple[float, float] | None:
-        if self._last_telemetry is None:
-            return None
-        return (self._last_telemetry.cpu, self._last_telemetry.ram)
+    def _telemetry_context(self) -> SystemTelemetry | None:
+        return self._last_telemetry
 
     async def _chat_pipeline(self, websocket: WebSocket, text: str) -> None:
         """Chat por texto: eco del usuario → LLM (streaming) → respuesta.

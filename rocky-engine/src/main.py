@@ -43,11 +43,11 @@ gcalendar = GCalendarClient()
 dispatcher = ToolDispatcher(
     tools=[
         SystemStatusTool(),
+        SystemTopTool(),
         SpotifyPlayTool(spotify),
         SpotifyPauseTool(spotify),
         SpotifyNextTool(spotify),
         CalendarTodayTool(gcalendar),
-        SystemTopTool(),
         SystemDiagnoseTool(),
     ]
 )

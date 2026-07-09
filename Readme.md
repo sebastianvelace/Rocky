@@ -14,8 +14,12 @@ telemetría, voz y herramientas deterministas de terceros.
 
 Funciona de punta a punta:
 
-- ✅ **Telemetría en tiempo real** — Rust (`sysinfo`) lee CPU/RAM cada segundo,
-  la UI la grafica (valor, barra con umbral y sparkline de 60 s).
+- ✅ **Telemetría en tiempo real** — Rust (`sysinfo`) lee CPU/RAM y el top de
+  procesos (agregados por nombre) cada segundo; la UI grafica valor, barra
+  con umbral, sparkline de 60 s y panel de procesos en vivo.
+- ✅ **Contexto de procesos** — "¿qué está comiendo la RAM?" lo responde la
+  herramienta determinista `system.top` con datos reales, y la conversación
+  libre recibe los 3 procesos más pesados en su contexto.
 - ✅ **Handshake de seguridad** — Tauri genera un UUID por arranque y lo inyecta
   al engine; el WebSocket rechaza cualquier conexión sin ese token.
 - ✅ **Alertas proactivas con IA** — CPU > 80 % o RAM > 90 % sostenidas 3 s
@@ -121,7 +125,7 @@ tipados en TypeScript (`src/hooks/useRocky.ts`).
 | Dirección | Mensaje WS | Evento Tauri | Contenido |
 |---|---|---|---|
 | Rust → Python | `{cpu, ram}` | — | telemetría cada 1 s |
-| Rust → Python | `{top_cpu, top_ram}` | — | rankings opcionales de procesos |
+| Rust → Python | `{top_cpu, top_ram}` | — | rankings opcionales de procesos con PID, CPU, RAM y memoria |
 | Rust → Python | `{"action":"listen"}` | — | iniciar pipeline de voz |
 | Rust → Python | `{"action":"chat","text"}` | — | mensaje escrito por el usuario |
 | Python → Rust | `TelemetryAck` | — (no llega a UI) | `{status, cpu_received}` |

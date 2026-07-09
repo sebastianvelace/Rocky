@@ -4,6 +4,9 @@ use sysinfo::{ProcessesToUpdate, System};
 /// Nombre del evento Tauri hacia el frontend. Debe coincidir exactamente con el `listen(...)` en Next.
 pub const SYSTEM_STATS_EVENT: &str = "system-stats";
 
+/// Procesos que viajan en cada ranking de cada tick.
+pub const TOP_PROCESS_COUNT: usize = 5;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemStats {
     pub cpu: f32,
@@ -22,8 +25,9 @@ pub struct ProcessStats {
 }
 
 pub fn collect_stats(system: &mut System) -> SystemStats {
-    // Un solo “paso” de refresco por ciclo: CPU (lista + métricas) y memoria.
-    // `System::new()` arranca sin CPUs cargadas; `refresh_cpu_usage()` solo no basta.
+    // Un solo “paso” de refresco por ciclo: CPU (lista + métricas), memoria
+    // y procesos. `System::new()` arranca sin CPUs cargadas;
+    // `refresh_cpu_usage()` solo no basta.
     system.refresh_cpu_all();
     system.refresh_memory();
     system.refresh_processes(ProcessesToUpdate::All, true);
@@ -39,6 +43,7 @@ pub fn collect_stats(system: &mut System) -> SystemStats {
     }
     .clamp(0.0, 100.0);
 
+    let num_cpus = system.cpus().len().max(1) as f32;
     let mut processes: Vec<ProcessStats> = system
         .processes()
         .iter()
@@ -54,9 +59,9 @@ pub fn collect_stats(system: &mut System) -> SystemStats {
             ProcessStats {
                 pid: pid.to_string(),
                 name: process.name().to_string_lossy().into_owned(),
-                cpu: process.cpu_usage().clamp(0.0, 100.0),
+                cpu: (process.cpu_usage() / num_cpus).clamp(0.0, 100.0),
                 ram,
-                memory_mb: (memory as f32 / 1024.0 / 1024.0).max(0.0),
+                memory_mb: (memory as f32 / 1_048_576.0).max(0.0),
             }
         })
         .filter(|process| process.cpu > 0.1 || process.memory_mb > 1.0)
@@ -64,10 +69,10 @@ pub fn collect_stats(system: &mut System) -> SystemStats {
 
     let mut top_cpu = processes.clone();
     top_cpu.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
-    top_cpu.truncate(5);
+    top_cpu.truncate(TOP_PROCESS_COUNT);
 
     processes.sort_by(|a, b| b.memory_mb.total_cmp(&a.memory_mb));
-    processes.truncate(5);
+    processes.truncate(TOP_PROCESS_COUNT);
 
     SystemStats {
         cpu,

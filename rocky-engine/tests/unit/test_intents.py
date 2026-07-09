@@ -41,6 +41,33 @@ class TestIntentParser:
         assert parser.parse("hola").tool == "chat"
 
 
+def telemetry_with_processes(cpu: float = 10.0, ram: float = 20.0) -> SystemTelemetry:
+    return SystemTelemetry.model_validate(
+        {
+            "cpu": cpu,
+            "ram": ram,
+            "top_cpu": [
+                {
+                    "pid": "123",
+                    "name": "cargo",
+                    "cpu": 36.5,
+                    "ram": 1.1,
+                    "memory_mb": 90,
+                }
+            ],
+            "top_ram": [
+                {
+                    "pid": "456",
+                    "name": "firefox",
+                    "cpu": 5.0,
+                    "ram": 12.2,
+                    "memory_mb": 1400,
+                }
+            ],
+        }
+    )
+
+
 class TestToolDispatcher:
     @pytest.mark.asyncio
     async def test_chat_intent_returns_none(self) -> None:
@@ -70,30 +97,7 @@ class TestToolDispatcher:
 
     @pytest.mark.asyncio
     async def test_system_top_lists_process_rankings(self) -> None:
-        telemetry = SystemTelemetry.model_validate(
-            {
-                "cpu": 42.0,
-                "ram": 61.0,
-                "top_cpu": [
-                    {
-                        "pid": "123",
-                        "name": "cargo",
-                        "cpu": 36.5,
-                        "ram": 1.1,
-                        "memory_mb": 90,
-                    }
-                ],
-                "top_ram": [
-                    {
-                        "pid": "456",
-                        "name": "firefox",
-                        "cpu": 5.0,
-                        "ram": 12.2,
-                        "memory_mb": 1400,
-                    }
-                ],
-            }
-        )
+        telemetry = telemetry_with_processes()
         result = await SystemTopTool().run({}, telemetry)
         assert "Top CPU" in result
         assert "cargo" in result
@@ -102,30 +106,7 @@ class TestToolDispatcher:
 
     @pytest.mark.asyncio
     async def test_system_diagnose_recommends_ram_offender(self) -> None:
-        telemetry = SystemTelemetry.model_validate(
-            {
-                "cpu": 62.0,
-                "ram": 94.0,
-                "top_cpu": [
-                    {
-                        "pid": "123",
-                        "name": "cargo",
-                        "cpu": 16.0,
-                        "ram": 1.1,
-                        "memory_mb": 90,
-                    }
-                ],
-                "top_ram": [
-                    {
-                        "pid": "456",
-                        "name": "firefox",
-                        "cpu": 5.0,
-                        "ram": 12.2,
-                        "memory_mb": 1400,
-                    }
-                ],
-            }
-        )
+        telemetry = telemetry_with_processes(cpu=62.0, ram=94.0)
         result = await SystemDiagnoseTool().run({}, telemetry)
         assert "RAM" in result
         assert "firefox" in result
@@ -137,3 +118,20 @@ class TestToolDispatcher:
         assert "system.top" in prompt
         assert "system.diagnose" in prompt
         assert "chat" in prompt
+
+
+class TestSystemTopTool:
+    @pytest.mark.asyncio
+    async def test_formats_top_processes(self) -> None:
+        telemetry = telemetry_with_processes()
+        result = await SystemTopTool().run({}, telemetry)
+        assert "cargo" in result
+        assert "36.5%" in result
+        assert "firefox" in result
+
+    @pytest.mark.asyncio
+    async def test_without_process_data(self) -> None:
+        assert "procesos" in (
+            await SystemTopTool().run({}, SystemTelemetry(cpu=10.0, ram=20.0))
+        ).lower()
+        assert "procesos" in (await SystemTopTool().run({}, None)).lower()

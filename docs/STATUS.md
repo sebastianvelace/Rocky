@@ -1,10 +1,10 @@
 # Estado Operativo de Rocky
 
-Última inspección local: 2026-07-09.
+Última inspección local: 2026-08-10.
 
 ## Verificado
 
-- Engine Python: `62 passed` con `venv/bin/python -m pytest -q`.
+- Engine Python: `70 passed` con `venv/bin/python -m pytest -q`.
 - Frontend: `npm run build` genera export estático correctamente.
 - TypeScript: `npm run lint` / `npm run typecheck` ejecutan `tsc --noEmit`.
 - Rust/Tauri: `cargo check` y `cargo test` pasan.

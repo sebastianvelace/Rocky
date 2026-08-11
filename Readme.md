@@ -10,6 +10,23 @@ telemetría, voz y herramientas deterministas de terceros.
 > [`docs/BLUEPRINT.md`](docs/BLUEPRINT.md). Este README describe **lo que existe
 > hoy** y las decisiones de arquitectura tomadas al implementarlo.
 
+## AI engineering focus
+
+Rocky is a local-first agent runtime for Linux, not only a voice assistant:
+
+- **Orchestration:** intent parsing routes each request through deterministic
+  tools, model providers and multimodal voice pipelines.
+- **Stateful systems:** SQLite conversation memory, bounded queues and streamed
+  WebSocket events preserve context without unbounded resource growth.
+- **Tool architecture:** registered tools use typed schemas, capability policy,
+  timeouts and explicit limits; the model cannot execute arbitrary shell
+  commands or write files.
+- **Reliability and security:** Rust owns the local boundary, issues an
+  ephemeral auth token and keeps it out of the webview; Python validates every
+  WebSocket connection and degrades safely when providers are unavailable.
+- **Multimodal delivery:** Tauri/Rust, Next.js/TypeScript and FastAPI/Python
+  work together for telemetry, streaming chat, speech-to-text and text-to-speech.
+
 ## Estado actual (Phase 1)
 
 Funciona de punta a punta:
@@ -170,7 +187,7 @@ rocky/
 │   │   ├── infrastructure/  # audio/ (STT, TTS) · clients/ (Groq) · logger.py
 │   │   ├── orchestrator.py  # enrutamiento de mensajes y pipeline de voz
 │   │   └── main.py          # entry point + inyección de dependencias
-│   └── tests/               # unit/ e integration/ (pytest, 46 tests)
+│   └── tests/               # unit/ e integration/ (pytest, 70 tests)
 ├── rocky-ui/                # Frontend (Tauri 2 + Next.js 16 + Tailwind 4)
 │   ├── src-tauri/src/       # main.rs · telemetry.rs · python_bridge.rs · auth_token.rs
 │   └── src/                 # app/ · components/ · hooks/useRocky.ts
